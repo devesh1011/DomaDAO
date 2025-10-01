@@ -68,8 +68,8 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
       ctaText = "Browse courses",
       ctaHref = "#",
       bottomImage = {
-        light: "https://farmui.vercel.app/dashboard-light.png",
-        dark: "https://farmui.vercel.app/dashboard.png",
+        light: "/hero-dashboard.png",
+        dark: "/hero-dashboard.png",
       },
       gridOptions,
       ...props
