@@ -12,13 +12,16 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^5.4.0",
-    "hardhat": "^2.26.3"
+    "hardhat": "^2.26.3",
+    "hardhat-deploy": "^0.12.4",
+    "hardhat-deploy-ethers": "^0.4.2"
   },
   "dependencies": {
-    "@nomicfoundation/solidity-analyzer-darwin-arm64": "^0.1.2"
+    "@nomicfoundation/solidity-analyzer-darwin-arm64": "^0.1.2",
+    "dotenv": "^17.2.3"
   }
 }
