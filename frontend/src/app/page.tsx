@@ -20,8 +20,8 @@ export default function Home() {
           ctaText="Explore Domains"
           ctaHref="#explore"
           bottomImage={{
-            light: "https://www.launchuicomponents.com/app-light.png",
-            dark: "https://www.launchuicomponents.com/app-light.png"
+            light: "/hero-dashboard.png",
+            dark: "/hero-dashboard.png"
           }}
           gridOptions={{
             angle: 65,
