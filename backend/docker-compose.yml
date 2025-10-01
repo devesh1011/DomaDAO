@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: domadao-postgres
+    environment:
+      POSTGRES_USER: domadao
+      POSTGRES_PASSWORD: domadao_password
+      POSTGRES_DB: domadao
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U domadao" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:6-alpine
+    container_name: domadao-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: domadao-api
+    environment:
+      NODE_ENV: production
+      SERVICE_MODE: api
+      DATABASE_URL: postgresql://domadao:domadao_password@postgres:5432/domadao
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: domadao
+      DB_USER: domadao
+      DB_PASSWORD: domadao_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      API_PORT: 3000
+      DOMA_API_KEY: ${DOMA_API_KEY}
+      DOMA_POLL_API_URL: ${DOMA_POLL_API_URL:-https://poll.doma.io}
+      DOMA_ORDERBOOK_API_URL: ${DOMA_ORDERBOOK_API_URL:-https://orderbook.doma.io}
+      DOMA_SUBGRAPH_URL: ${DOMA_SUBGRAPH_URL:-https://api.studio.thegraph.com/query/73855/doma-mainnet/version/latest}
+      CHAIN_ID: ${CHAIN_ID:-11155111}
+      RPC_URL: ${RPC_URL}
+      POOL_FACTORY_ADDRESS: ${POOL_FACTORY_ADDRESS}
+      USDC_ADDRESS: ${USDC_ADDRESS}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Event Indexer Service
+  indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: domadao-indexer
+    environment:
+      NODE_ENV: production
+      SERVICE_MODE: indexer
+      DATABASE_URL: postgresql://domadao:domadao_password@postgres:5432/domadao
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: domadao
+      DB_USER: domadao
+      DB_PASSWORD: domadao_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DOMA_API_KEY: ${DOMA_API_KEY}
+      DOMA_POLL_API_URL: ${DOMA_POLL_API_URL:-https://poll.doma.io}
+      INDEXER_ENABLED: true
+      INDEXER_POLL_INTERVAL_MS: 5000
+      INDEXER_BATCH_SIZE: 100
+      CHAIN_ID: ${CHAIN_ID:-11155111}
+      RPC_URL: ${RPC_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
