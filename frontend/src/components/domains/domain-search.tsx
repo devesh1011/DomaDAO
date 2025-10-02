@@ -1,105 +1,42 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, X } from "lucide-react"
+import { Search, X, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { SearchBar } from "./search-bar"
 import { DomainFilters } from "./domain-filters"
 import { DomainGrid } from "./domain-grid"
-import { LoadMore } from "./load-more"
-
-interface Domain {
-  name: string
-  tld: string
-  expiryDate: string
-  owner: string
-  chains: string[]
-  listings: number
-  offers: number
-}
-
-const mockDomains: Domain[] = [
-  {
-    name: "crypto",
-    tld: ".eth",
-    expiryDate: "2026-03-15",
-    owner: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    chains: ["ethereum", "polygon"],
-    listings: 2,
-    offers: 5
-  },
-  {
-    name: "defi",
-    tld: ".domains",
-    expiryDate: "2025-11-20",
-    owner: "0x8ba1f109551bD432803012645261768374161972",
-    chains: ["ethereum"],
-    listings: 1,
-    offers: 3
-  },
-  {
-    name: "web3",
-    tld: ".nft",
-    expiryDate: "2026-01-10",
-    owner: "0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE",
-    chains: ["ethereum", "bsc"],
-    listings: 0,
-    offers: 8
-  },
-  {
-    name: "blockchain",
-    tld: ".xyz",
-    expiryDate: "2025-12-05",
-    owner: "0x28C6c06298d514Db089934071355E5743bf21d60",
-    chains: ["ethereum", "optimism"],
-    listings: 3,
-    offers: 2
-  },
-  {
-    name: "dao",
-    tld: ".org",
-    expiryDate: "2026-02-28",
-    owner: "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3",
-    chains: ["ethereum"],
-    listings: 1,
-    offers: 4
-  },
-  {
-    name: "premium",
-    tld: ".ai",
-    expiryDate: "2025-10-15",
-    owner: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    chains: ["ethereum", "arbitrum"],
-    listings: 0,
-    offers: 6
-  }
-]
+import { useDomainSearch } from "@/hooks/use-api"
 
 export function DomainSearch() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [selectedTLD, setSelectedTLD] = useState("All")
-  const [domains] = useState<Domain[]>(mockDomains)
-  const [filteredDomains, setFilteredDomains] = useState<Domain[]>(mockDomains)
-  const [isLoading, setIsLoading] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const limit = 12
 
-  // Filter domains based on search query and TLD
+  // Debounce search query
   useEffect(() => {
-    let filtered = domains
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+      setCurrentPage(1) // Reset to page 1 on new search
+    }, 500)
 
-    if (searchQuery) {
-      filtered = filtered.filter(domain =>
-        domain.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
-    if (selectedTLD !== "All") {
-      filtered = filtered.filter(domain => domain.tld === selectedTLD)
-    }
+  // Fetch domains from API
+  const { data: domainsResponse, loading, error, refetch } = useDomainSearch({
+    query: debouncedQuery || undefined,
+    tld: selectedTLD !== "All" ? selectedTLD : undefined,
+    page: currentPage,
+    limit,
+    includePricing: true // Enable pricing data
+  })
 
-    setFilteredDomains(filtered)
-  }, [searchQuery, selectedTLD, domains])
+  const domains = domainsResponse?.data || []
+  const hasMore = currentPage < (domainsResponse?.pagination?.totalPages || 1)
 
   const handleSearch = (query: string) => {
     setSearchQuery(query)
@@ -107,19 +44,16 @@ export function DomainSearch() {
 
   const handleTLDChange = (tld: string) => {
     setSelectedTLD(tld)
+    setCurrentPage(1) // Reset to page 1 on filter change
   }
 
   const handleLoadMore = () => {
-    setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setHasMore(false)
-      setIsLoading(false)
-    }, 1000)
+    setCurrentPage(prev => prev + 1)
   }
 
   const handleClearSearch = () => {
     setSearchQuery("")
+    setDebouncedQuery("")
   }
 
   return (
@@ -144,6 +78,7 @@ export function DomainSearch() {
             size="sm"
             onClick={() => handleTLDChange(tld)}
             className="whitespace-nowrap"
+            disabled={loading}
           >
             {tld}
           </Button>
@@ -153,57 +88,98 @@ export function DomainSearch() {
       {/* Advanced Filters */}
       <DomainFilters />
 
-      {/* Results Count */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Showing {filteredDomains.length} results{searchQuery && ` for "${searchQuery}"`}
-        </p>
-        {searchQuery && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearSearch}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4 mr-1" />
-            Clear search
-          </Button>
-        )}
-      </div>
-
-      {/* Domain Grid */}
-      <DomainGrid domains={filteredDomains} />
-
-      {/* Load More */}
-      {hasMore && filteredDomains.length > 0 && (
-        <LoadMore onLoadMore={handleLoadMore} isLoading={isLoading} />
+      {/* Loading State */}
+      {loading && currentPage === 1 && (
+        <div className="flex justify-center items-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+          <span className="ml-2 text-muted-foreground">Searching domains...</span>
+        </div>
       )}
 
-      {/* Empty State */}
-      {filteredDomains.length === 0 && (
-        <Card className="text-center py-12">
-          <CardContent>
-            <div className="space-y-4">
-              <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                <Search className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">No domains found</h3>
-                <p className="text-muted-foreground">
-                  {searchQuery ? `No domains found for "${searchQuery}"` : "No domains match your filters"}
-                </p>
-              </div>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Suggestions:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Try different search terms</li>
-                  <li>Clear filters</li>
-                  <li>Browse all domains</li>
-                </ul>
-              </div>
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Failed to load domains</h3>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => refetch()} className="bg-gradient-to-r from-purple-600 to-pink-500">
+            Try Again
+          </Button>
+        </div>
+      )}
+
+      {/* Results */}
+      {!loading && !error && (
+        <>
+          {/* Results Count */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {domains.length} of {domainsResponse?.pagination?.total || 0} results
+              {searchQuery && ` for "${searchQuery}"`}
+            </p>
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearSearch}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear search
+              </Button>
+            )}
+          </div>
+
+          {/* Domain Grid */}
+          <DomainGrid domains={domains} />
+
+          {/* Load More */}
+          {hasMore && domains.length > 0 && (
+            <div className="text-center">
+              <Button 
+                onClick={handleLoadMore} 
+                disabled={loading}
+                className="bg-gradient-to-r from-purple-600 to-pink-500"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load More'
+                )}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* Empty State */}
+          {domains.length === 0 && (
+            <Card className="text-center py-12">
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                    <Search className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">No domains found</h3>
+                    <p className="text-muted-foreground">
+                      {searchQuery ? `No domains found for "${searchQuery}"` : "No domains match your filters"}
+                    </p>
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>Suggestions:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Try different search terms</li>
+                      <li>Clear filters</li>
+                      <li>Browse all domains</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )

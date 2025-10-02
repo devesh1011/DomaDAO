@@ -1,19 +1,11 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-
-interface Domain {
-  name: string
-  tld: string
-  expiryDate: string
-  owner: string
-  chains: string[]
-  listings: number
-  offers: number
-}
+import type { Domain } from "@/lib/api-types"
 
 interface DomainGridProps {
   domains: Domain[]
@@ -29,7 +21,7 @@ const getExpiryColor = (expiryDate: string) => {
   return "text-green-600 bg-green-50 border-green-200"
 }
 
-const getChainIcon = (chain: string) => {
+const getChainIcon = (chainName: string) => {
   const icons: Record<string, string> = {
     ethereum: "⟠",
     polygon: "⬡",
@@ -38,11 +30,22 @@ const getChainIcon = (chain: string) => {
     optimism: "⚡",
     base: "⊙"
   }
-  return icons[chain.toLowerCase()] || "●"
+  return icons[chainName.toLowerCase()] || "●"
 }
 
 export function DomainGrid({ domains }: DomainGridProps) {
-  if (domains.length === 0) return null
+  const router = useRouter()
+
+  // Defensive check: ensure domains is an array
+  if (!domains || !Array.isArray(domains) || domains.length === 0) {
+    return null
+  }
+
+  const handleViewDetails = (domain: Domain) => {
+    // Navigate to domain detail page
+    const domainFullName = `${domain.name}${domain.tld}`
+    router.push(`/domains/${encodeURIComponent(domainFullName)}`)
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -63,18 +66,18 @@ export function DomainGrid({ domains }: DomainGridProps) {
                     {domain.tld}
                   </Badge>
                   <div className="flex gap-1">
-                    {domain.chains.slice(0, 3).map((chain) => (
+                    {domain.tokens.slice(0, 3).map((token) => (
                       <span
-                        key={chain}
+                        key={`${token.chainId}-${token.contractAddress}`}
                         className="text-xs"
-                        title={chain}
+                        title={token.chainName}
                       >
-                        {getChainIcon(chain)}
+                        {getChainIcon(token.chainName)}
                       </span>
                     ))}
-                    {domain.chains.length > 3 && (
+                    {domain.tokens.length > 3 && (
                       <span className="text-xs text-muted-foreground">
-                        +{domain.chains.length - 3}
+                        +{domain.tokens.length - 3}
                       </span>
                     )}
                   </div>
@@ -84,14 +87,29 @@ export function DomainGrid({ domains }: DomainGridProps) {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Best Offer Price */}
+            {domain.bestOffer && (
+              <div>
+                <p className="text-sm text-muted-foreground">Best Offer</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-green-600">
+                    {(parseFloat(domain.bestOffer.price) / Math.pow(10, domain.bestOffer.currency.decimals)).toFixed(2)}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {domain.bestOffer.currency.symbol}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Expiry Date */}
             <div>
               <p className="text-sm text-muted-foreground">Expires</p>
               <Badge
                 variant="outline"
-                className={`text-xs ${getExpiryColor(domain.expiryDate)}`}
+                className={`text-xs ${getExpiryColor(domain.expiresAt)}`}
               >
-                {new Date(domain.expiryDate).toLocaleDateString()}
+                {new Date(domain.expiresAt).toLocaleDateString()}
               </Badge>
             </div>
 
@@ -107,20 +125,23 @@ export function DomainGrid({ domains }: DomainGridProps) {
             <div className="flex gap-4">
               <div className="text-center">
                 <p className="text-lg font-semibold text-blue-600">
-                  {domain.listings}
+                  {domain.tokens.length}
                 </p>
-                <p className="text-xs text-muted-foreground">Listings</p>
+                <p className="text-xs text-muted-foreground">Tokens</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-purple-600">
-                  {domain.offers}
+                  {domain.tokenizedAt ? '✓' : '✗'}
                 </p>
-                <p className="text-xs text-muted-foreground">Offers</p>
+                <p className="text-xs text-muted-foreground">Tokenized</p>
               </div>
             </div>
 
             {/* Action Button */}
-            <Button className="w-full group-hover:bg-primary/90 transition-colors">
+            <Button 
+              className="w-full group-hover:bg-primary/90 transition-colors"
+              onClick={() => handleViewDetails(domain)}
+            >
               <Eye className="h-4 w-4 mr-2" />
               View Details
             </Button>
