@@ -1,7 +1,7 @@
 "use client"
 
 import { NavBar } from "@/components/ui/tubelight-navbar"
-import { Home, TrendingUp, Users, Settings, Wallet } from "lucide-react"
+import { Home, TrendingUp, Users, Settings, Wallet, Vote } from "lucide-react"
 
 const navItems = [
   {
@@ -10,8 +10,8 @@ const navItems = [
     icon: Home,
   },
   {
-    name: "Explore",
-    url: "/explore",
+    name: "Dashboard",
+    url: "/dashboard",
     icon: TrendingUp,
   },
   {
@@ -20,13 +20,13 @@ const navItems = [
     icon: Users,
   },
   {
-    name: "Portfolio",
-    url: "/portfolio",
-    icon: Wallet,
+    name: "Governance",
+    url: "/governance",
+    icon: Vote,
   },
   {
     name: "Settings",
-    url: "/settings",
+    url: "/dashboard", // Use dashboard with settings view
     icon: Settings,
   },
 ]
