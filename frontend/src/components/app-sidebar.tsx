@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Home,
   Search,
@@ -62,7 +63,16 @@ const data = {
   ],
 }
 
-export function AppSidebar({ onNavigate, ...props }: React.ComponentProps<typeof Sidebar> & { onNavigate?: (view: string) => void }) {
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const currentView = searchParams.get("view") || "dashboard"
+
+  const handleNavigate = (view: string) => {
+    const newSearchParams = new URLSearchParams(searchParams.toString())
+    newSearchParams.set("view", view)
+    router.push(`/dashboard?${newSearchParams.toString()}`, { scroll: false })
+  }
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -85,8 +95,8 @@ export function AppSidebar({ onNavigate, ...props }: React.ComponentProps<typeof
           {data.navMain.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
-                isActive={item.isActive}
-                onClick={() => onNavigate?.(item.key)}
+                isActive={currentView === item.key}
+                onClick={() => handleNavigate(item.key)}
                 className="cursor-pointer"
               >
                 <item.icon className="size-4" />
