@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Search,
   Globe,
@@ -27,6 +28,7 @@ import { PoolExplorer } from "@/components/dashboard/pool-explorer"
 import { DomainSearch } from "@/components/domains/domain-search"
 import { PortfolioPage } from "@/components/portfolio/portfolio-page"
 import { GovernancePage } from "@/components/governance/governance-page"
+import { WalletConnect } from "@/components/wallet/wallet-connect"
 
 const portfolioCards = [
   {
@@ -137,8 +139,18 @@ const governanceAlerts = [
 ]
 
 export function DomaDashboard() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [userName] = useState("dev.eth")
-  const [currentView, setCurrentView] = useState("dashboard")
+  
+  // Get current view from URL search params, default to "dashboard"
+  const currentView = searchParams.get("view") || "dashboard"
+
+  const setCurrentView = (view: string) => {
+    const newSearchParams = new URLSearchParams(searchParams.toString())
+    newSearchParams.set("view", view)
+    router.push(`/dashboard?${newSearchParams.toString()}`, { scroll: false })
+  }
 
   const getPageTitle = () => {
     switch (currentView) {
@@ -166,7 +178,7 @@ export function DomaDashboard() {
 
   return (
     <SidebarProvider>
-      <AppSidebar variant="inset" onNavigate={setCurrentView} />
+      <AppSidebar variant="inset" />
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
@@ -178,11 +190,12 @@ export function DomaDashboard() {
                 {getPageDescription()}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button variant="outline" size="sm">
                 <Bell className="h-4 w-4 mr-2" />
                 Notifications
               </Button>
+              <WalletConnect />
             </div>
           </div>
         </header>
