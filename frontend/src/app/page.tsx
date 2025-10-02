@@ -2,13 +2,11 @@ import { HeroSection } from "@/components/blocks/hero-section-dark"
 import { FeaturesSection } from "@/components/blocks/features-section"
 import { HowItWorksSection } from "@/components/blocks/how-it-works-section"
 import { CTASection } from "@/components/blocks/cta-section"
-import { NavigationBar } from "@/components/blocks/navigation-bar"
 import { StackedCircularFooter } from "@/components/ui/stacked-circular-footer"
 
 export default function Home() {
   return (
     <>
-      <NavigationBar />
       <main>
         <HeroSection
           title="Welcome to DomaDAO"
