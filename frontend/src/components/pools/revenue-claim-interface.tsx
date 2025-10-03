@@ -1,19 +1,36 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle2, AlertCircle, ExternalLink, DollarSign, TrendingUp } from "lucide-react"
-import { getRevenueDistributorService, type DistributionInfo, type ClaimStatus } from "@/lib/contracts/revenue-distributor"
-import { getTransactionLink } from "@/lib/contracts/addresses"
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  DollarSign,
+  TrendingUp,
+} from "lucide-react";
+import {
+  getRevenueDistributorService,
+  type DistributionInfo,
+  type ClaimStatus,
+} from "@/lib/contracts/revenue-distributor";
+import { getTransactionLink } from "@/lib/contracts/addresses";
 
 interface RevenueClaimInterfaceProps {
-  poolAddress: string
-  fractionTokenAddress: string
-  userAddress: string | null
-  onClaimSuccess: () => void
+  poolAddress: string;
+  fractionTokenAddress: string;
+  userAddress: string | null;
+  onClaimSuccess: () => void;
 }
 
 export function RevenueClaimInterface({
@@ -22,105 +39,109 @@ export function RevenueClaimInterface({
   userAddress,
   onClaimSuccess,
 }: RevenueClaimInterfaceProps) {
-  const [distributions, setDistributions] = useState<DistributionInfo[]>([])
-  const [claimStatuses, setClaimStatuses] = useState<ClaimStatus[]>([])
-  const [loading, setLoading] = useState(true)
-  const [claiming, setClaiming] = useState(false)
-  const [txHash, setTxHash] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [distributions, setDistributions] = useState<DistributionInfo[]>([]);
+  const [claimStatuses, setClaimStatuses] = useState<ClaimStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [claiming, setClaiming] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   /**
    * Load distributions and claim statuses
    */
   const loadDistributions = useCallback(async () => {
-    if (!userAddress) return
+    if (!userAddress) return;
 
     try {
-      setLoading(true)
-      const service = await getRevenueDistributorService()
-      
+      setLoading(true);
+      const service = await getRevenueDistributorService();
+
       // Get all distributions
-      const dists = await service.getAllDistributions()
-      setDistributions(dists)
+      const dists = await service.getAllDistributions();
+      setDistributions(dists);
 
       // Get claim statuses
-      const statuses = await service.getUserClaimStatuses(userAddress)
-      setClaimStatuses(statuses)
+      const statuses = await service.getUserClaimStatuses(userAddress);
+      setClaimStatuses(statuses);
     } catch (err: any) {
-      console.error('Error loading distributions:', err)
-      setError(err.message || 'Failed to load distributions')
+      console.error("Error loading distributions:", err);
+      setError(err.message || "Failed to load distributions");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [userAddress])
+  }, [userAddress]);
 
   useEffect(() => {
-    loadDistributions()
-  }, [loadDistributions])
+    loadDistributions();
+  }, [loadDistributions]);
 
   /**
    * Claim from a single distribution
    */
   const handleClaim = async (distributionId: bigint) => {
     try {
-      setClaiming(true)
-      setError(null)
+      setClaiming(true);
+      setError(null);
 
-      const service = await getRevenueDistributorService()
-      const tx = await service.claim(distributionId)
-      
-      setTxHash(tx.hash)
-      await tx.wait()
+      const service = await getRevenueDistributorService();
+      const tx = await service.claim(distributionId);
 
-      onClaimSuccess()
-      loadDistributions()
+      setTxHash(tx.hash);
+      await tx.wait();
+
+      onClaimSuccess();
+      loadDistributions();
     } catch (err: any) {
-      console.error('Error claiming revenue:', err)
-      setError(err.message || 'Failed to claim revenue')
+      console.error("Error claiming revenue:", err);
+      setError(err.message || "Failed to claim revenue");
     } finally {
-      setClaiming(false)
+      setClaiming(false);
     }
-  }
+  };
 
   /**
    * Claim from all unclaimed distributions
    */
   const handleClaimAll = async () => {
     try {
-      setClaiming(true)
-      setError(null)
+      setClaiming(true);
+      setError(null);
 
       const unclaimedIds = claimStatuses
-        .filter(status => !status.hasClaimed)
-        .map(status => status.distributionId)
+        .filter(
+          (status) => !status.hasClaimed && status.claimableAmount > BigInt(0)
+        )
+        .map((status) => status.distributionId);
 
       if (unclaimedIds.length === 0) {
-        setError('No unclaimed distributions')
-        return
+        setError("No unclaimed distributions");
+        return;
       }
 
-      const service = await getRevenueDistributorService()
-      const tx = await service.claimMultiple(unclaimedIds)
-      
-      setTxHash(tx.hash)
-      await tx.wait()
+      const service = await getRevenueDistributorService();
+      const tx = await service.claimMultiple(unclaimedIds);
 
-      onClaimSuccess()
-      loadDistributions()
+      setTxHash(tx.hash);
+      await tx.wait();
+
+      onClaimSuccess();
+      loadDistributions();
     } catch (err: any) {
-      console.error('Error claiming all revenue:', err)
-      setError(err.message || 'Failed to claim revenue')
+      console.error("Error claiming all revenue:", err);
+      setError(err.message || "Failed to claim revenue");
     } finally {
-      setClaiming(false)
+      setClaiming(false);
     }
-  }
+  };
 
   // Calculate total unclaimed
-  const totalUnclaimed = distributions
-    .filter((_, index) => !claimStatuses[index]?.hasClaimed)
-    .reduce((sum, dist) => sum + Number(dist.totalAmount), 0)
+  const totalUnclaimed = claimStatuses
+    .filter((s) => !s.hasClaimed)
+    .reduce((sum, status) => sum + Number(status.claimableAmount), 0);
 
-  const unclaimedCount = claimStatuses.filter(s => !s.hasClaimed).length
+  const unclaimedCount = claimStatuses.filter(
+    (s) => !s.hasClaimed && s.claimableAmount > BigInt(0)
+  ).length;
 
   if (!userAddress) {
     return (
@@ -136,11 +157,12 @@ export function RevenueClaimInterface({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Revenue from domain ownership is distributed to fraction token holders.
+            Revenue from domain ownership is distributed to fraction token
+            holders.
           </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (loading) {
@@ -156,7 +178,7 @@ export function RevenueClaimInterface({
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -174,9 +196,9 @@ export function RevenueClaimInterface({
       {/* Transaction Hash */}
       {txHash && (
         <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <a 
-            href={getTransactionLink(txHash)} 
-            target="_blank" 
+          <a
+            href={getTransactionLink(txHash)}
+            target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 text-sm"
           >
@@ -195,7 +217,8 @@ export function RevenueClaimInterface({
                 Revenue Summary
               </CardTitle>
               <CardDescription>
-                {distributions.length} total distribution{distributions.length !== 1 ? 's' : ''}
+                {distributions.length} total distribution
+                {distributions.length !== 1 ? "s" : ""}
               </CardDescription>
             </div>
             {unclaimedCount > 0 && (
@@ -222,13 +245,23 @@ export function RevenueClaimInterface({
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Distributed</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                Total Distributed
+              </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ${(distributions.reduce((sum, d) => sum + Number(d.totalAmount), 0) / 1e6).toFixed(2)}
+                $
+                {(
+                  distributions.reduce(
+                    (sum, d) => sum + Number(d.totalAmount),
+                    0
+                  ) / 1e6
+                ).toFixed(2)}
               </p>
             </div>
             <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-              <p className="text-sm text-green-700 dark:text-green-300 mb-1">Unclaimed Revenue</p>
+              <p className="text-sm text-green-700 dark:text-green-300 mb-1">
+                Unclaimed Revenue
+              </p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 ${(totalUnclaimed / 1e6).toFixed(2)}
               </p>
@@ -241,7 +274,9 @@ export function RevenueClaimInterface({
       <Card>
         <CardHeader>
           <CardTitle>Distribution History</CardTitle>
-          <CardDescription>All revenue distributions for this pool</CardDescription>
+          <CardDescription>
+            All revenue distributions for this pool
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {distributions.length === 0 ? (
@@ -255,9 +290,11 @@ export function RevenueClaimInterface({
           ) : (
             <div className="space-y-3">
               {distributions.map((dist, index) => {
-                const status = claimStatuses[index]
-                const hasClaimed = status?.hasClaimed || false
-                const amount = Number(dist.totalAmount) / 1e6
+                const status = claimStatuses[index];
+                const hasClaimed = status?.hasClaimed || false;
+                const claimableAmount = status?.claimableAmount || BigInt(0);
+                const totalAmount = Number(dist.totalAmount) / 1e6;
+                const userAmount = Number(claimableAmount) / 1e6;
 
                 return (
                   <div
@@ -266,47 +303,73 @@ export function RevenueClaimInterface({
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium">Distribution #{dist.id.toString()}</span>
+                        <span className="font-medium">
+                          Distribution #{dist.id.toString()}
+                        </span>
                         {hasClaimed ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          >
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Claimed
                           </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        ) : claimableAmount > BigInt(0) ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                          >
                             Pending
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
+                          >
+                            No Balance
                           </Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                        <span className="font-medium text-green-600 dark:text-green-400">
-                          ${amount.toFixed(2)} USDC
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          Total: ${totalAmount.toFixed(2)} USDC
+                        </span>
+                        {claimableAmount > BigInt(0) && (
+                          <span className="font-medium text-green-600 dark:text-green-400">
+                            Your Share: ${userAmount.toFixed(2)} USDC
+                          </span>
+                        )}
+                        <span>
+                          {new Date(
+                            Number(dist.timestamp) * 1000
+                          ).toLocaleDateString()}
                         </span>
                         <span>
-                          {new Date(Number(dist.timestamp) * 1000).toLocaleDateString()}
-                        </span>
-                        <span>
-                          {((Number(dist.claimedAmount) / Number(dist.totalAmount)) * 100).toFixed(0)}% claimed
+                          {(
+                            (Number(dist.claimedAmount) /
+                              Number(dist.totalAmount)) *
+                            100
+                          ).toFixed(0)}
+                          % claimed
                         </span>
                       </div>
                     </div>
-                    {!hasClaimed && (
+                    {!hasClaimed && claimableAmount > BigInt(0) && (
                       <Button
                         onClick={() => handleClaim(dist.id)}
                         disabled={claiming}
                         size="sm"
-                        variant="outline"
-                        className="ml-4"
+                        className="ml-4 bg-green-600 hover:bg-green-700"
                       >
                         {claiming ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          'Claim'
+                          <>Claim ${userAmount.toFixed(2)}</>
                         )}
                       </Button>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -318,12 +381,14 @@ export function RevenueClaimInterface({
         <CardContent className="pt-6">
           <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>How it works:</strong> Domain revenue is distributed proportionally to all fraction token holders
-              based on their token balance at the time of distribution. You can claim your share at any time.
+              <strong>How it works:</strong> Domain revenue is distributed
+              proportionally to all fraction token holders based on their token
+              balance at the time of distribution. You can claim your share at
+              any time.
             </p>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

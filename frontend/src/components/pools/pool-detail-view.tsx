@@ -1,262 +1,327 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Users, Clock, Target, TrendingUp, CheckCircle2, Loader2, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useWallet } from "@/contexts/wallet-context"
-import { getReadOnlyFractionPoolService, PoolInfo, Contributor, DomainCandidate, PoolState } from "@/lib/contracts/fraction-pool"
-import { getMockUSDCService } from "@/lib/contracts/usdc"
-import { ethers } from "ethers"
-import { getTransactionLink } from "@/lib/contracts/addresses"
-import { VotingInterface } from "./voting-interface"
-import { ProposeCandidateForm } from "./propose-candidate-form"
-import { PurchaseFractionalize } from "./purchase-fractionalize"
-import { ClaimShares } from "./claim-shares"
-import { RevenueClaimInterface } from "./revenue-claim-interface"
-import { BuyoutInterface } from "./buyout-interface"
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Users,
+  Clock,
+  Target,
+  TrendingUp,
+  CheckCircle2,
+  Loader2,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWallet } from "@/contexts/wallet-context";
+import {
+  getReadOnlyFractionPoolService,
+  getFractionPoolService,
+  PoolInfo,
+  Contributor,
+  DomainCandidate,
+  PoolState,
+} from "@/lib/contracts/fraction-pool";
+import { getMockUSDCService } from "@/lib/contracts/usdc";
+import { ethers } from "ethers";
+import { getTransactionLink } from "@/lib/contracts/addresses";
+import { VotingInterface } from "./voting-interface";
+import { ProposeCandidateForm } from "./propose-candidate-form";
+import { PurchaseFractionalize } from "./purchase-fractionalize";
+import { ClaimShares } from "./claim-shares";
+import { RevenueClaimInterface } from "./revenue-claim-interface";
+import { BuyoutInterface } from "./buyout-interface";
 
 interface PoolDetailViewProps {
-  poolAddress: string
+  poolAddress: string;
 }
 
 export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
-  const router = useRouter()
-  const { account, isConnected, isCorrectNetwork, connectWallet, switchToDomaNetwork } = useWallet()
-  
-  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null)
-  const [contributors, setContributors] = useState<Contributor[]>([])
-  const [candidates, setCandidates] = useState<DomainCandidate[]>([])
-  const [userContribution, setUserContribution] = useState<string>("0")
-  const [userHasVoted, setUserHasVoted] = useState(false)
-  const [usdcBalance, setUsdcBalance] = useState<string | null>(null)
-  const [hasApproval, setHasApproval] = useState(false)
-  const [userTokenBalance, setUserTokenBalance] = useState<bigint>(BigInt(0))
-  
-  const [loading, setLoading] = useState(true)
-  const [contributing, setContributing] = useState(false)
-  const [approving, setApproving] = useState(false)
-  
-  const [contributionAmount, setContributionAmount] = useState("")
-  const [txHash, setTxHash] = useState<string | null>(null)
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' })
+  const router = useRouter();
+  const {
+    account,
+    isConnected,
+    isCorrectNetwork,
+    connectWallet,
+    switchToDomaNetwork,
+  } = useWallet();
 
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setStatus({ type, message })
-    setTimeout(() => setStatus({ type: null, message: '' }), 8000)
-  }
+  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [candidates, setCandidates] = useState<DomainCandidate[]>([]);
+  const [userContribution, setUserContribution] = useState<string>("0");
+  const [userHasVoted, setUserHasVoted] = useState(false);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+  const [hasApproval, setHasApproval] = useState(false);
+  const [userTokenBalance, setUserTokenBalance] = useState<bigint>(BigInt(0));
+
+  const [loading, setLoading] = useState(true);
+  const [contributing, setContributing] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [status, setStatus] = useState<{
+    type: "success" | "error" | null;
+    message: string;
+  }>({ type: null, message: "" });
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setStatus({ type, message });
+    setTimeout(() => setStatus({ type: null, message: "" }), 8000);
+  };
 
   /**
    * Load pool information from contract
    */
   const loadPoolInfo = useCallback(async () => {
     try {
-      const poolService = await getReadOnlyFractionPoolService(poolAddress)
-      const info = await poolService.getPoolInfo()
-      setPoolInfo(info)
+      const poolService = await getReadOnlyFractionPoolService(poolAddress);
+      const info = await poolService.getPoolInfo();
+      setPoolInfo(info);
 
       // Load contributors
-      const contributorsList = await poolService.getContributors()
-      setContributors(contributorsList)
+      const contributorsList = await poolService.getContributors();
+      setContributors(contributorsList);
 
       // Load candidates
-      const candidatesList = await poolService.getAllCandidates()
-      setCandidates(candidatesList)
+      const candidatesList = await poolService.getAllCandidates();
+      setCandidates(candidatesList);
 
       // Load user contribution and voting status if connected
       if (account) {
-        const contribution = await poolService.getContribution(account)
-        setUserContribution(contribution.amount)
+        const contribution = await poolService.getContribution(account);
+        setUserContribution(contribution.amount);
 
-        const hasVoted = await poolService.hasVoted(account)
-        setUserHasVoted(hasVoted)
+        const hasVoted = await poolService.hasVoted(account);
+        setUserHasVoted(hasVoted);
 
         // Load user's fraction token balance if pool is fractionalized
-        if (info.state === PoolState.Fractionalized && info.fractionToken !== ethers.ZeroAddress) {
+        if (
+          info.state === PoolState.Fractionalized &&
+          info.fractionToken !== ethers.ZeroAddress
+        ) {
           try {
-            const provider = new ethers.BrowserProvider((window as any).ethereum)
+            const provider = new ethers.BrowserProvider(
+              (window as any).ethereum
+            );
             const tokenContract = new ethers.Contract(
               info.fractionToken,
               ["function balanceOf(address) view returns (uint256)"],
               provider
-            )
-            const balance = await tokenContract.balanceOf(account)
-            setUserTokenBalance(BigInt(balance.toString()))
+            );
+            const balance = await tokenContract.balanceOf(account);
+            setUserTokenBalance(BigInt(balance.toString()));
           } catch (error) {
-            console.error("Error loading token balance:", error)
-            setUserTokenBalance(BigInt(0))
+            console.error("Error loading token balance:", error);
+            setUserTokenBalance(BigInt(0));
           }
         }
       }
     } catch (error: any) {
-      console.error("Error loading pool info:", error)
-      showToast('error', 'Failed to load pool information')
+      console.error("Error loading pool info:", error);
+      showToast("error", "Failed to load pool information");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [poolAddress, account])
+  }, [poolAddress, account]);
 
   /**
    * Check USDC balance and approval
    */
   const checkUSDCStatus = useCallback(async () => {
-    if (!account || !isConnected) return
+    if (!account || !isConnected) return;
 
     try {
-      const usdcService = await getMockUSDCService()
+      const usdcService = await getMockUSDCService();
 
       // Get balance
-      const balance = await usdcService.balanceOf(account)
-      setUsdcBalance(balance)
+      const balance = await usdcService.balanceOf(account);
+      setUsdcBalance(balance);
 
       // Check approval
-      const allowance = await usdcService.allowanceRaw(account, poolAddress)
-      setHasApproval(allowance > BigInt(0))
+      const allowance = await usdcService.allowanceRaw(account, poolAddress);
+      setHasApproval(allowance > BigInt(0));
     } catch (error) {
-      console.error('Error checking USDC status:', error)
+      console.error("Error checking USDC status:", error);
     }
-  }, [account, isConnected, poolAddress])
+  }, [account, isConnected, poolAddress]);
 
   useEffect(() => {
-    loadPoolInfo()
-  }, [loadPoolInfo])
+    loadPoolInfo();
+  }, [loadPoolInfo]);
 
   useEffect(() => {
     if (account && isConnected) {
-      checkUSDCStatus()
+      checkUSDCStatus();
     }
-  }, [account, isConnected, checkUSDCStatus])
+  }, [account, isConnected, checkUSDCStatus]);
 
   /**
    * Handle USDC approval
    */
   const handleApproval = async () => {
-    if (!account) return
+    if (!account) return;
 
-    setApproving(true)
+    setApproving(true);
 
     try {
-      const usdcService = await getMockUSDCService()
+      const usdcService = await getMockUSDCService();
 
       // Approve a reasonable amount for contributions (1000 USDC)
-      showToast('success', 'Please approve USDC spending in MetaMask...')
-      const tx = await usdcService.approve(poolAddress, '1000')
+      showToast("success", "Please approve USDC spending in MetaMask...");
+      const tx = await usdcService.approve(poolAddress, "1000");
 
-      showToast('success', `Approval submitted! Hash: ${tx.hash.slice(0, 10)}...`)
-      await tx.wait()
+      showToast(
+        "success",
+        `Approval submitted! Hash: ${tx.hash.slice(0, 10)}...`
+      );
+      await tx.wait();
 
-      setHasApproval(true)
-      showToast('success', 'USDC spending approved!')
-      await checkUSDCStatus()
+      setHasApproval(true);
+      showToast("success", "USDC spending approved!");
+      await checkUSDCStatus();
     } catch (error: any) {
-      console.error('Error approving USDC:', error)
+      console.error("Error approving USDC:", error);
 
-      if (error.code === 'ACTION_REJECTED') {
-        showToast('error', 'Approval rejected by user')
+      if (error.code === "ACTION_REJECTED") {
+        showToast("error", "Approval rejected by user");
       } else {
-        showToast('error', error.message || 'Failed to approve USDC')
+        showToast("error", error.message || "Failed to approve USDC");
       }
     } finally {
-      setApproving(false)
+      setApproving(false);
     }
-  }
+  };
 
   /**
    * Handle contribution
    */
   const handleContribute = async () => {
     if (!isConnected) {
-      showToast('error', 'Please connect your wallet first')
-      await connectWallet()
-      return
+      showToast("error", "Please connect your wallet first");
+      await connectWallet();
+      return;
     }
 
     if (!isCorrectNetwork) {
-      showToast('error', 'Please switch to DOMA Testnet')
-      await switchToDomaNetwork()
-      return
+      showToast("error", "Please switch to DOMA Testnet");
+      await switchToDomaNetwork();
+      return;
     }
 
     if (!hasApproval) {
-      showToast('error', 'Please approve USDC first')
-      return
+      showToast("error", "Please approve USDC first");
+      return;
     }
 
-    const amount = parseFloat(contributionAmount)
+    const amount = parseFloat(contributionAmount);
     if (isNaN(amount) || amount <= 0) {
-      showToast('error', 'Please enter a valid amount')
-      return
+      showToast("error", "Please enter a valid amount");
+      return;
     }
 
-    setContributing(true)
-    setTxHash(null)
+    // Check minimum contribution
+    if (!poolInfo) {
+      showToast("error", "Pool information not loaded");
+      return;
+    }
+    const minContribution = Number(poolInfo.minimumContribution) / 1e6; // Convert from smallest unit
+    if (amount < minContribution) {
+      showToast("error", `Minimum contribution is ${minContribution} USDC`);
+      return;
+    }
+
+    setContributing(true);
+    setTxHash(null);
 
     try {
-      const poolService = await getFractionPoolService(poolAddress)
+      const poolService = await getFractionPoolService(poolAddress);
 
-      showToast('success', 'Please confirm the transaction in MetaMask...')
-      const tx = await poolService.contribute(contributionAmount)
+      showToast("success", "Please confirm the transaction in MetaMask...");
+      const tx = await poolService.contribute(contributionAmount);
 
-      setTxHash(tx.hash)
-      showToast('success', `Transaction submitted! Hash: ${tx.hash.slice(0, 10)}...`)
+      setTxHash(tx.hash);
+      showToast(
+        "success",
+        `Transaction submitted! Hash: ${tx.hash.slice(0, 10)}...`
+      );
 
-      showToast('success', 'Waiting for confirmation...')
-      await tx.wait()
+      showToast("success", "Waiting for confirmation...");
+      await tx.wait();
 
-      showToast('success', 'Contribution successful!')
-      setContributionAmount("")
+      showToast("success", "Contribution successful!");
+      setContributionAmount("");
 
       // Reload pool info
-      await loadPoolInfo()
-      await checkUSDCStatus()
+      await loadPoolInfo();
+      await checkUSDCStatus();
     } catch (error: any) {
-      console.error('Error contributing:', error)
+      console.error("Error contributing:", error);
 
-      if (error.code === 'ACTION_REJECTED') {
-        showToast('error', 'Transaction rejected by user')
-      } else if (error.code === 'INSUFFICIENT_FUNDS') {
-        showToast('error', 'Insufficient funds for gas')
+      if (error.code === "ACTION_REJECTED") {
+        showToast("error", "Transaction rejected by user");
+      } else if (error.code === "INSUFFICIENT_FUNDS") {
+        showToast("error", "Insufficient funds for gas");
+      } else if (error.code === -32603 || error.code === "UNKNOWN_ERROR") {
+        showToast(
+          "error",
+          "Network error - please check your connection and try again"
+        );
+      } else if (error.message?.includes("Below minimum contribution")) {
+        showToast("error", "Contribution amount is below the minimum required");
+      } else if (error.message?.includes("execution reverted")) {
+        showToast(
+          "error",
+          "Transaction failed - please check your USDC balance and approval"
+        );
       } else {
-        showToast('error', error.message || 'Failed to contribute')
+        showToast("error", error.message || "Failed to contribute");
       }
     } finally {
-      setContributing(false)
+      setContributing(false);
     }
-  }
+  };
 
   /**
    * Mint test USDC
    */
   const handleMintUSDC = async () => {
-    if (!account) return
+    if (!account) return;
 
-    setContributing(true)
+    setContributing(true);
 
     try {
-      const usdcService = await getMockUSDCService()
+      const usdcService = await getMockUSDCService();
 
-      showToast('success', 'Minting 1000 test USDC...')
-      const tx = await usdcService.mint(account, '1000')
+      showToast("success", "Minting 1000 test USDC...");
+      const tx = await usdcService.mint(account, "1000");
 
-      showToast('success', 'Waiting for mint confirmation...')
-      await tx.wait()
+      showToast("success", "Waiting for mint confirmation...");
+      await tx.wait();
 
-      showToast('success', '1000 USDC minted successfully!')
-      await checkUSDCStatus()
+      showToast("success", "1000 USDC minted successfully!");
+      await checkUSDCStatus();
     } catch (error: any) {
-      console.error('Error minting USDC:', error)
-      showToast('error', error.message || 'Failed to mint USDC')
+      console.error("Error minting USDC:", error);
+      showToast("error", error.message || "Failed to mint USDC");
     } finally {
-      setContributing(false)
+      setContributing(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -265,7 +330,7 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
           <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
         </div>
       </div>
-    )
+    );
   }
 
   if (!poolInfo) {
@@ -275,32 +340,28 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
             Pool not found
           </h2>
-          <Button onClick={() => router.push('/pools')}>
-            Back to Pools
-          </Button>
+          <Button onClick={() => router.back()}>Back</Button>
         </div>
       </div>
-    )
+    );
   }
 
-  const progress = poolInfo.totalRaised > 0 
-    ? (Number(poolInfo.totalRaised) / Number(poolInfo.targetRaise)) * 100 
-    : 0
-  
-  const timeRemaining = Number(poolInfo.endTimestamp) - Math.floor(Date.now() / 1000)
-  const daysRemaining = Math.max(0, Math.floor(timeRemaining / 86400))
+  const progress =
+    poolInfo.totalRaised > 0
+      ? (Number(poolInfo.totalRaised) / Number(poolInfo.targetRaise)) * 100
+      : 0;
+
+  const timeRemaining =
+    Number(poolInfo.endTimestamp) - Math.floor(Date.now() / 1000);
+  const daysRemaining = Math.max(0, Math.floor(timeRemaining / 86400));
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => router.push('/pools')}
-          className="mb-4"
-        >
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Pools
+          Back
         </Button>
 
         <div className="flex items-center justify-between">
@@ -312,30 +373,50 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               <code className="text-sm text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded">
                 {poolAddress.slice(0, 10)}...{poolAddress.slice(-8)}
               </code>
-              <Badge className={
-                poolInfo.state === PoolState.Active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                poolInfo.state === PoolState.Voting ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
-              }>
-                {poolInfo.state === PoolState.Active && 'Active'}
-                {poolInfo.state === PoolState.Voting && 'Voting'}
-                {poolInfo.state === PoolState.Purchasing && 'Purchasing'}
-                {poolInfo.state === PoolState.Fractionalized && 'Fractionalized'}
-                {poolInfo.state === PoolState.Failed && 'Failed'}
-                {poolInfo.state === PoolState.Cancelled && 'Cancelled'}
+              <Badge
+                className={
+                  poolInfo.state === PoolState.Active
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                    : poolInfo.state === PoolState.Voting
+                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                }
+              >
+                {poolInfo.state === PoolState.Active && "Active"}
+                {poolInfo.state === PoolState.Voting && "Voting"}
+                {poolInfo.state === PoolState.Purchasing && "Purchasing"}
+                {poolInfo.state === PoolState.Fractionalized &&
+                  "Fractionalized"}
+                {poolInfo.state === PoolState.Failed && "Failed"}
+                {poolInfo.state === PoolState.Cancelled && "Cancelled"}
               </Badge>
             </div>
           </div>
+
+          {/* Admin Button for Pool Owner */}
+          {account &&
+            poolInfo.creator.toLowerCase() === account.toLowerCase() && (
+              <Button
+                onClick={() => router.push(`/pools/${poolAddress}/admin`)}
+                variant="outline"
+                className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Admin Panel
+              </Button>
+            )}
         </div>
       </div>
 
       {/* Status Toast */}
       {status.type && (
-        <div className={`mb-6 p-4 rounded-lg ${
-          status.type === 'success' 
-            ? 'bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800'
-            : 'bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
-        }`}>
+        <div
+          className={`mb-6 p-4 rounded-lg ${
+            status.type === "success"
+              ? "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800"
+              : "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
+          }`}
+        >
           {status.message}
         </div>
       )}
@@ -351,16 +432,20 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Progress</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Progress
+                  </span>
                   <span className="font-medium">{progress.toFixed(1)}%</span>
                 </div>
                 <Progress value={progress} className="h-3" />
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">
-                    {(Number(poolInfo.totalRaised) / 1e6).toFixed(2)} USDC raised
+                    {(Number(poolInfo.totalRaised) / 1e6).toFixed(2)} USDC
+                    raised
                   </span>
                   <span className="font-medium text-purple-600 dark:text-purple-400">
-                    {(Number(poolInfo.targetRaise) / 1e6).toFixed(2)} USDC target
+                    {(Number(poolInfo.targetRaise) / 1e6).toFixed(2)} USDC
+                    target
                   </span>
                 </div>
               </div>
@@ -371,21 +456,27 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {Number(poolInfo.contributorCount)}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Contributors</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    Contributors
+                  </div>
                 </div>
                 <div className="text-center">
                   <Clock className="w-5 h-5 mx-auto mb-1 text-gray-400" />
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {daysRemaining}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Days Left</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    Days Left
+                  </div>
                 </div>
                 <div className="text-center">
                   <Target className="w-5 h-5 mx-auto mb-1 text-gray-400" />
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {Number(poolInfo.candidateCount)}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Candidates</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    Candidates
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -403,12 +494,14 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               <TabsTrigger value="revenue">Revenue</TabsTrigger>
               <TabsTrigger value="buyout">Buyout</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="contributors">
               <Card>
                 <CardHeader>
                   <CardTitle>Top Contributors</CardTitle>
-                  <CardDescription>Largest contributions to this pool</CardDescription>
+                  <CardDescription>
+                    Largest contributions to this pool
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {contributors.length === 0 ? (
@@ -418,13 +511,17 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                   ) : (
                     <div className="space-y-3">
                       {contributors.slice(0, 10).map((contributor, index) => (
-                        <div key={contributor.address} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div
+                          key={contributor.address}
+                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                        >
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-400 font-semibold">
                               {index + 1}
                             </div>
                             <code className="text-sm">
-                              {contributor.address.slice(0, 6)}...{contributor.address.slice(-4)}
+                              {contributor.address.slice(0, 6)}...
+                              {contributor.address.slice(-4)}
                             </code>
                           </div>
                           <div className="font-medium text-purple-600 dark:text-purple-400">
@@ -444,10 +541,13 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>Domain Voting</CardTitle>
-                      <CardDescription>Vote for your preferred domain</CardDescription>
+                      <CardDescription>
+                        Vote for your preferred domain
+                      </CardDescription>
                     </div>
-                    <ProposeCandidateForm 
+                    <ProposeCandidateForm
                       poolAddress={poolAddress}
+                      poolCreator={poolInfo.creator}
                       userContribution={userContribution}
                       onProposalSuccess={loadPoolInfo}
                     />
@@ -459,6 +559,9 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                     candidates={candidates}
                     userHasVoted={userHasVoted}
                     userContribution={userContribution}
+                    votingStart={poolInfo.votingStart}
+                    votingEnd={poolInfo.votingEnd}
+                    poolState={poolInfo.state}
                     onVoteSuccess={loadPoolInfo}
                   />
                 </CardContent>
@@ -469,7 +572,11 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               <PurchaseFractionalize
                 poolAddress={poolAddress}
                 poolInfo={poolInfo}
-                winningCandidate={candidates.find((_, index) => index === Number(poolInfo.winningCandidate)) || null}
+                winningCandidate={
+                  candidates.find(
+                    (_, index) => index === Number(poolInfo.winningCandidate)
+                  ) || null
+                }
                 userContribution={userContribution}
                 onSuccess={loadPoolInfo}
               />
@@ -518,9 +625,13 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               {/* USDC Balance */}
               {usdcBalance && (
                 <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Your Balance</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Your Balance
+                  </span>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{parseFloat(usdcBalance).toFixed(2)} USDC</span>
+                    <span className="font-medium">
+                      {parseFloat(usdcBalance).toFixed(2)} USDC
+                    </span>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -539,18 +650,21 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                 <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
                   <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
                   <span className="text-sm">
-                    You&apos;ve contributed <strong>{userContribution} USDC</strong>
+                    You&apos;ve contributed{" "}
+                    <strong>{userContribution} USDC</strong>
                   </span>
                 </div>
               )}
 
               {/* Approval Status */}
               {isConnected && (
-                <div className={`p-3 rounded-lg text-sm border ${
-                  hasApproval 
-                    ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
-                    : 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800'
-                }`}>
+                <div
+                  className={`p-3 rounded-lg text-sm border ${
+                    hasApproval
+                      ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                      : "bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800"
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {hasApproval ? (
@@ -560,7 +674,9 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                         </>
                       ) : (
                         <>
-                          <span className="font-medium">USDC Approval Required</span>
+                          <span className="font-medium">
+                            USDC Approval Required
+                          </span>
                         </>
                       )}
                     </div>
@@ -577,7 +693,7 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                             Approving...
                           </>
                         ) : (
-                          'Approve'
+                          "Approve"
                         )}
                       </Button>
                     )}
@@ -588,6 +704,12 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               {/* Contribution Input */}
               <div className="space-y-2">
                 <Label htmlFor="amount">Amount (USDC)</Label>
+                {poolInfo && (
+                  <p className="text-xs text-gray-500">
+                    Minimum contribution:{" "}
+                    {Number(poolInfo.minimumContribution) / 1e6} USDC
+                  </p>
+                )}
                 <Input
                   id="amount"
                   type="number"
@@ -601,7 +723,9 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               <Button
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white"
                 onClick={handleContribute}
-                disabled={contributing || approving || !hasApproval || !isConnected}
+                disabled={
+                  contributing || approving || !hasApproval || !isConnected
+                }
               >
                 {contributing ? (
                   <>
@@ -619,9 +743,9 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               {/* Transaction Hash */}
               {txHash && (
                 <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm border border-blue-200 dark:border-blue-800">
-                  <a 
-                    href={getTransactionLink(txHash)} 
-                    target="_blank" 
+                  <a
+                    href={getTransactionLink(txHash)}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                   >
@@ -639,21 +763,37 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Creator</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Creator
+                </span>
                 <code className="text-xs">
                   {poolInfo.creator.slice(0, 6)}...{poolInfo.creator.slice(-4)}
                 </code>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Start Date</span>
-                <span>{new Date(Number(poolInfo.startTimestamp) * 1000).toLocaleDateString()}</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Start Date
+                </span>
+                <span>
+                  {new Date(
+                    Number(poolInfo.startTimestamp) * 1000
+                  ).toLocaleDateString()}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">End Date</span>
-                <span>{new Date(Number(poolInfo.endTimestamp) * 1000).toLocaleDateString()}</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  End Date
+                </span>
+                <span>
+                  {new Date(
+                    Number(poolInfo.endTimestamp) * 1000
+                  ).toLocaleDateString()}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Payment Token</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Payment Token
+                </span>
                 <span>USDC</span>
               </div>
             </CardContent>
@@ -661,5 +801,5 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,20 +1,35 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle2, AlertCircle, ExternalLink, Gift } from "lucide-react"
-import { getFractionPoolService, type PoolInfo } from "@/lib/contracts/fraction-pool"
-import { getTransactionLink } from "@/lib/contracts/addresses"
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Gift,
+} from "lucide-react";
+import {
+  getFractionPoolService,
+  type PoolInfo,
+} from "@/lib/contracts/fraction-pool";
+import { getTransactionLink } from "@/lib/contracts/addresses";
 
 interface ClaimSharesProps {
-  poolAddress: string
-  poolInfo: PoolInfo
-  userAddress: string | null
-  userContribution: string
-  onSuccess: () => void
+  poolAddress: string;
+  poolInfo: PoolInfo;
+  userAddress: string | null;
+  userContribution: string;
+  onSuccess: () => void;
 }
 
 export function ClaimShares({
@@ -24,60 +39,84 @@ export function ClaimShares({
   userContribution,
   onSuccess,
 }: ClaimSharesProps) {
-  const [claimableShares, setClaimableShares] = useState<bigint>(BigInt(0))
-  const [hasClaimed, setHasClaimed] = useState(false)
-  const [claiming, setClaiming] = useState(false)
-  const [txHash, setTxHash] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [claimableShares, setClaimableShares] = useState<bigint>(BigInt(0));
+  const [hasClaimed, setHasClaimed] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const isFractionalized = poolInfo.state === 4 // Fractionalized state
+  const isFractionalized = poolInfo.state === 4; // Fractionalized state
 
   /**
    * Load claimable shares
    */
   const loadClaimableShares = useCallback(async () => {
-    if (!userAddress || !isFractionalized) return
+    if (!userAddress || !isFractionalized) return;
 
     try {
-      const poolService = await getFractionPoolService(poolAddress)
-      const shares = await poolService.getClaimableShares(userAddress)
-      setClaimableShares(shares)
+      const poolService = await getFractionPoolService(poolAddress);
+      const shares = await poolService.getClaimableShares(userAddress);
+      setClaimableShares(shares);
 
       // Check if user has already claimed
-      const claimed = await poolService.hasClaimedShares(userAddress)
-      setHasClaimed(claimed)
+      const claimed = await poolService.hasClaimedShares(userAddress);
+      setHasClaimed(claimed);
     } catch (err: any) {
-      console.error('Error loading claimable shares:', err)
+      console.error("Error loading claimable shares:", err);
     }
-  }, [poolAddress, userAddress, isFractionalized])
+  }, [poolAddress, userAddress, isFractionalized]);
 
   useEffect(() => {
-    loadClaimableShares()
-  }, [loadClaimableShares])
+    loadClaimableShares();
+  }, [loadClaimableShares]);
 
   /**
    * Claim fractional shares
    */
   const handleClaimShares = async () => {
     try {
-      setClaiming(true)
-      setError(null)
+      setClaiming(true);
+      setError(null);
 
-      const poolService = await getFractionPoolService(poolAddress)
-      const tx = await poolService.claimShares()
-      
-      setTxHash(tx.hash)
-      await tx.wait()
+      const poolService = await getFractionPoolService(poolAddress);
+      const tx = await poolService.claimShares();
 
-      setHasClaimed(true)
-      onSuccess()
+      setTxHash(tx.hash);
+      await tx.wait();
+
+      setHasClaimed(true);
+      onSuccess();
     } catch (err: any) {
-      console.error('Error claiming shares:', err)
-      setError(err.message || 'Failed to claim shares')
+      console.error("Error claiming shares:", err);
+      setError(err.message || "Failed to claim shares");
     } finally {
-      setClaiming(false)
+      setClaiming(false);
     }
-  }
+  };
+
+  /**
+   * Format share tokens for display (assuming 18 decimals)
+   */
+  const formatShares = (shares: bigint): string => {
+    const sharesNumber = Number(shares) / 1e18;
+    return sharesNumber.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    });
+  };
+
+  /**
+   * Calculate ownership percentage
+   */
+  const calculateOwnershipPercentage = (): string => {
+    if (poolInfo.totalRaised === BigInt(0)) return "0.00";
+    const contributionRaw = BigInt(
+      Math.floor(parseFloat(userContribution) * 1e6)
+    );
+    const percentage =
+      (Number(contributionRaw) * 100) / Number(poolInfo.totalRaised);
+    return percentage.toFixed(2);
+  };
 
   // If not fractionalized yet, show waiting state
   if (!isFractionalized) {
@@ -89,16 +128,18 @@ export function ClaimShares({
             Claim Fractional Shares
           </CardTitle>
           <CardDescription>
-            Claim your fractional ownership tokens once the domain is fractionalized
+            Claim your fractional ownership tokens once the domain is
+            fractionalized
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            The domain must be purchased and fractionalized before you can claim your shares.
+            The domain must be purchased and fractionalized before you can claim
+            your shares.
           </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   // If user hasn't contributed, they can't claim
@@ -116,11 +157,12 @@ export function ClaimShares({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            You didn&apos;t contribute to this pool, so you don&apos;t have any shares to claim.
+            You didn&apos;t contribute to this pool, so you don&apos;t have any
+            shares to claim.
           </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -149,9 +191,9 @@ export function ClaimShares({
         {/* Transaction Hash */}
         {txHash && (
           <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <a 
-              href={getTransactionLink(txHash)} 
-              target="_blank" 
+            <a
+              href={getTransactionLink(txHash)}
+              target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 text-sm"
             >
@@ -161,15 +203,27 @@ export function ClaimShares({
         )}
 
         {/* Claimable Shares Info */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Your Contribution:</span>
+        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Your Contribution:
+            </span>
             <span className="font-medium">{userContribution} USDC</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Claimable Shares:</span>
-            <span className="font-bold text-blue-600 dark:text-blue-400">
-              {claimableShares.toString()} tokens
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Pool Ownership:
+            </span>
+            <span className="font-medium">
+              {calculateOwnershipPercentage()}%
+            </span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Claimable Shares:
+            </span>
+            <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              {formatShares(claimableShares)}
             </span>
           </div>
         </div>
@@ -202,6 +256,7 @@ export function ClaimShares({
             onClick={handleClaimShares}
             disabled={claiming || claimableShares === BigInt(0)}
             className="w-full"
+            size="lg"
           >
             {claiming ? (
               <>
@@ -211,7 +266,7 @@ export function ClaimShares({
             ) : (
               <>
                 <Gift className="mr-2 h-4 w-4" />
-                Claim {claimableShares.toString()} Tokens
+                Claim {formatShares(claimableShares)} Tokens
               </>
             )}
           </Button>
@@ -220,11 +275,12 @@ export function ClaimShares({
         {/* Instructions */}
         <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            <strong>Note:</strong> Your share allocation is proportional to your contribution. 
-            Claiming is a one-time action. Make sure to add the token to your wallet to see your balance.
+            <strong>Note:</strong> Your share allocation is proportional to your
+            contribution. Claiming is a one-time action. Make sure to add the
+            token to your wallet to see your balance.
           </p>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
