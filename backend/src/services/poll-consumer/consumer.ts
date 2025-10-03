@@ -1,28 +1,33 @@
-import axios, { AxiosInstance } from 'axios';
-import { pollLogger as logger } from '../../utils/logger.js';
-import { config } from '../../config/index.js';
+import axios, { AxiosInstance } from "axios";
+import { pollLogger as logger } from "../../utils/logger.js";
+import { config } from "../../config/index.js";
+import { pool } from "../../db/connection.js";
+import { PollEventRepository } from "../../db/repositories/poll-events.js";
 import {
   DomaPollEvent,
   PollResponse,
   PollParams,
   EventType,
-} from '../../types/doma.js';
+} from "../../types/doma.js";
 
 export class PollConsumer {
   private client: AxiosInstance;
   private lastAcknowledgedId: number = 0;
   private isRunning: boolean = false;
   private pollInterval: NodeJS.Timeout | null = null;
+  private eventRepository: PollEventRepository;
 
   constructor() {
     this.client = axios.create({
       baseURL: config.domaApi.baseURL,
       headers: {
-        'Api-Key': config.domaApi.apiKey,
-        'Content-Type': 'application/json',
+        "Api-Key": config.domaApi.apiKey,
+        "Content-Type": "application/json",
       },
       timeout: config.api.timeoutMs,
     });
+
+    this.eventRepository = new PollEventRepository(pool);
   }
 
   /**
@@ -30,14 +35,30 @@ export class PollConsumer {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      logger.warn('Poll consumer is already running');
+      logger.warn("Poll consumer is already running");
       return;
     }
 
-    logger.info({
-      intervalMs: config.pollApi.intervalMs,
-      batchSize: config.pollApi.batchSize,
-    }, 'Starting poll consumer');
+    // Load last acknowledged ID from database
+    try {
+      this.lastAcknowledgedId =
+        await this.eventRepository.getLastAcknowledgedId();
+      logger.info(
+        { lastAcknowledgedId: this.lastAcknowledgedId },
+        "Loaded cursor from database"
+      );
+    } catch (error) {
+      logger.error({ error }, "Error loading cursor from database");
+    }
+
+    logger.info(
+      {
+        intervalMs: config.pollApi.intervalMs,
+        batchSize: config.pollApi.batchSize,
+        lastAcknowledgedId: this.lastAcknowledgedId,
+      },
+      "Starting poll consumer"
+    );
 
     this.isRunning = true;
     await this.poll(); // Initial poll
@@ -53,7 +74,7 @@ export class PollConsumer {
    * Stop polling
    */
   stop(): void {
-    logger.info('Stopping poll consumer');
+    logger.info("Stopping poll consumer");
     this.isRunning = false;
 
     if (this.pollInterval) {
@@ -77,28 +98,31 @@ export class PollConsumer {
       // Add event type filter if configured
       if (config.pollApi.eventTypes) {
         params.eventTypes = config.pollApi.eventTypes
-          .split(',')
-          .map(t => t.trim()) as EventType[];
+          .split(",")
+          .map((t) => t.trim()) as EventType[];
       }
 
-      logger.debug({ params }, 'Polling for events');
+      logger.debug({ params }, "Polling for events");
 
-      const response = await this.client.get<PollResponse>('/v1/poll', {
+      const response = await this.client.get<PollResponse>("/v1/poll", {
         params,
       });
 
       const { events, lastId, hasMoreEvents } = response.data;
 
       if (events.length === 0) {
-        logger.debug('No new events');
+        logger.debug("No new events");
         return;
       }
 
-      logger.info({
-        eventCount: events.length,
-        lastId,
-        hasMoreEvents,
-      }, 'Received events from poll');
+      logger.info(
+        {
+          eventCount: events.length,
+          lastId,
+          hasMoreEvents,
+        },
+        "Received events from poll"
+      );
 
       // Process events
       await this.processEvents(events);
@@ -108,41 +132,69 @@ export class PollConsumer {
 
       // If there are more events, poll again immediately
       if (hasMoreEvents) {
-        logger.debug('More events available, polling again');
+        logger.debug("More events available, polling again");
         setImmediate(() => this.poll());
       }
     } catch (error) {
-      logger.error({ error }, 'Error polling for events');
+      logger.error({ error }, "Error polling for events");
     }
   }
 
   /**
    * Process received events
-   * Override this method or emit events for external handlers
+   * Store in database and emit for external handlers
    */
   private async processEvents(events: DomaPollEvent[]): Promise<void> {
-    for (const event of events) {
-      try {
-        logger.info({
-          eventId: event.id,
-          type: event.type,
-          name: event.name,
-          tokenId: event.tokenId,
-          uniqueId: event.uniqueId,
-        }, 'Processing event');
+    try {
+      // Store events in database
+      const insertedCount = await this.eventRepository.insertBatch(events);
+      logger.info(
+        { insertedCount, totalEvents: events.length },
+        "Stored events in database"
+      );
 
-        // Emit event for external handlers (indexer, webhooks, etc.)
-        this.emit('event', event);
+      // Process individual events
+      for (const event of events) {
+        try {
+          logger.debug(
+            {
+              eventId: event.id,
+              type: event.type,
+              name: event.name,
+              tokenId: event.tokenId,
+              uniqueId: event.uniqueId,
+            },
+            "Processing event"
+          );
 
-        // Type-specific processing
-        await this.handleEvent(event);
-      } catch (error) {
-        logger.error({
-          error,
-          eventId: event.id,
-          uniqueId: event.uniqueId,
-        }, 'Error processing event');
+          // Emit event for external handlers (indexer, webhooks, etc.)
+          this.emit("event", event);
+
+          // Type-specific processing
+          await this.handleEvent(event);
+
+          // Mark as processed
+          await this.eventRepository.markProcessed(event.id);
+        } catch (error) {
+          logger.error(
+            {
+              error,
+              eventId: event.id,
+              uniqueId: event.uniqueId,
+            },
+            "Error processing event"
+          );
+
+          // Mark as failed
+          await this.eventRepository.markFailed(
+            event.id,
+            error instanceof Error ? error.message : "Unknown error"
+          );
+        }
       }
+    } catch (error) {
+      logger.error({ error }, "Error storing events in database");
+      throw error;
     }
   }
 
@@ -151,38 +203,38 @@ export class PollConsumer {
    */
   private async handleEvent(event: DomaPollEvent): Promise<void> {
     switch (event.type) {
-      case 'NAME_TOKEN_MINTED':
-        logger.debug({ event }, 'Domain NFT minted');
-        this.emit('token:minted', event);
+      case "NAME_TOKEN_MINTED":
+        logger.debug({ event }, "Domain NFT minted");
+        this.emit("token:minted", event);
         break;
 
-      case 'NAME_TOKEN_TRANSFERRED':
-        logger.debug({ event }, 'Domain NFT transferred');
-        this.emit('token:transferred', event);
+      case "NAME_TOKEN_TRANSFERRED":
+        logger.debug({ event }, "Domain NFT transferred");
+        this.emit("token:transferred", event);
         break;
 
-      case 'NAME_TOKEN_RENEWED':
-        logger.debug({ event }, 'Domain renewed');
-        this.emit('token:renewed', event);
+      case "NAME_TOKEN_RENEWED":
+        logger.debug({ event }, "Domain renewed");
+        this.emit("token:renewed", event);
         break;
 
-      case 'NAME_TOKEN_BURNED':
-        logger.debug({ event }, 'Domain NFT burned');
-        this.emit('token:burned', event);
+      case "NAME_TOKEN_BURNED":
+        logger.debug({ event }, "Domain NFT burned");
+        this.emit("token:burned", event);
         break;
 
-      case 'LOCK_STATUS_CHANGED':
-        logger.debug({ event }, 'Transfer lock status changed');
-        this.emit('token:lock_changed', event);
+      case "LOCK_STATUS_CHANGED":
+        logger.debug({ event }, "Transfer lock status changed");
+        this.emit("token:lock_changed", event);
         break;
 
-      case 'METADATA_UPDATED':
-        logger.debug({ event }, 'Token metadata updated');
-        this.emit('token:metadata_updated', event);
+      case "METADATA_UPDATED":
+        logger.debug({ event }, "Token metadata updated");
+        this.emit("token:metadata_updated", event);
         break;
 
       default:
-        logger.warn({ eventType: event.type }, 'Unknown event type');
+        logger.warn({ eventType: event.type }, "Unknown event type");
     }
   }
 
@@ -191,11 +243,16 @@ export class PollConsumer {
    */
   private async acknowledgeEvents(lastEventId: number): Promise<void> {
     try {
+      // Acknowledge to Doma API
       await this.client.post(`/v1/poll/ack/${lastEventId}`);
+
+      // Update database cursor
+      await this.eventRepository.updateLastAcknowledgedId(lastEventId);
+
       this.lastAcknowledgedId = lastEventId;
-      logger.debug({ lastEventId }, 'Acknowledged events');
+      logger.debug({ lastEventId }, "Acknowledged events");
     } catch (error) {
-      logger.error({ error, lastEventId }, 'Error acknowledging events');
+      logger.error({ error, lastEventId }, "Error acknowledging events");
       throw error;
     }
   }
@@ -206,13 +263,25 @@ export class PollConsumer {
    */
   async reset(eventId: number = 0): Promise<void> {
     try {
+      // Reset in Doma API
       await this.client.post(`/v1/poll/reset/${eventId}`);
+
+      // Reset in database
+      await this.eventRepository.updateLastAcknowledgedId(eventId);
+
       this.lastAcknowledgedId = eventId;
-      logger.info({ eventId }, 'Reset poll cursor');
+      logger.info({ eventId }, "Reset poll cursor");
     } catch (error) {
-      logger.error({ error, eventId }, 'Error resetting poll cursor');
+      logger.error({ error, eventId }, "Error resetting poll cursor");
       throw error;
     }
+  }
+
+  /**
+   * Get event statistics
+   */
+  async getStats(): Promise<any> {
+    return await this.eventRepository.getStats();
   }
 
   /**
@@ -242,7 +311,7 @@ export class PollConsumer {
   private emit(eventName: string, data: any): void {
     const listeners = this.listeners.get(eventName);
     if (listeners) {
-      listeners.forEach(listener => listener(data));
+      listeners.forEach((listener) => listener(data));
     }
   }
 }

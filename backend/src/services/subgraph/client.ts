@@ -1,5 +1,6 @@
 import { ApolloClient, InMemoryCache, HttpLink, gql } from '@apollo/client/core';
 import fetch from 'cross-fetch';
+import axios from 'axios';
 import { subgraphLogger as logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import {
@@ -27,12 +28,14 @@ export class SubgraphClient {
         fetch,
         headers: {
           'Api-Key': config.domaApi.apiKey,
+          'Content-Type': 'application/json',
         },
       }),
       cache: new InMemoryCache(),
       defaultOptions: {
         query: {
           fetchPolicy: 'network-only',
+          errorPolicy: 'all',
         },
       },
     });
@@ -111,7 +114,7 @@ export class SubgraphClient {
   /**
    * Get information about a specific tokenized name
    */
-  async getName(name: string): Promise<NameModel> {
+  async getName(name: string): Promise<NameModel | null> {
     const query = gql`
       query GetName($name: String!) {
         name(name: $name) {
@@ -163,7 +166,18 @@ export class SubgraphClient {
       });
 
       return result.data.name;
-    } catch (error) {
+    } catch (error: any) {
+      // Check if it's a GraphQL "NOT_FOUND" error
+      if (error.graphQLErrors && error.graphQLErrors.length > 0) {
+        const notFoundError = error.graphQLErrors.find(
+          (err: any) => err.extensions?.code === 'NOT_FOUND'
+        );
+        if (notFoundError) {
+          logger.info({ name }, 'Name not found in subgraph');
+          return null;
+        }
+      }
+      
       logger.error({ error, name }, 'Error fetching name');
       throw error;
     }
@@ -277,95 +291,88 @@ export class SubgraphClient {
   /**
    * Get activities for a specific name
    */
+  /**
+   * Get activities for a specific name
+   */
   async getNameActivities(
     name: string,
     params: ActivitiesQueryParams = {}
   ): Promise<PaginatedResponse<NameActivity>> {
-    console.log('getNameActivities called with:', { name, params });
-
-    const query = gql`
-      query GetNameActivities(
-        $name: String!
-        $skip: Float
-        $take: Float
-        $type: NameActivityType
-        $sortOrder: SortOrderType
-      ) {
-        nameActivities(
-          name: $name
-          skip: $skip
-          take: $take
-          type: $type
-          sortOrder: $sortOrder
-        ) {
-          items {
-            ... on NameClaimedActivity {
-              type
-              txHash
-              sld
-              tld
-              createdAt
-              claimedBy
-            }
-            ... on NameRenewedActivity {
-              type
-              txHash
-              sld
-              tld
-              createdAt
-              expiresAt
-            }
-            ... on NameTokenizedActivity {
-              type
-              txHash
-              sld
-              tld
-              createdAt
-              networkId
-            }
-            ... on NameDetokenizedActivity {
-              type
-              txHash
-              sld
-              tld
-              createdAt
-              networkId
-            }
-          }
-          totalCount
-          pageSize
-          currentPage
-          totalPages
-          hasPreviousPage
-          hasNextPage
-        }
-      }
-    `;
-
     try {
-      console.log('Executing GraphQL query for name activities');
-      const result = await this.client.query({
-        query,
-        variables: { name, ...params },
-      });
-      console.log('GraphQL query result:', result.data);
+      const query = `
+        query GetNameActivities($name: String!, $skip: Int, $take: Int, $type: NameActivityType, $sortOrder: SortOrderType) {
+          nameActivities(name: $name, skip: $skip, take: $take, type: $type, sortOrder: $sortOrder) {
+            items {
+              ... on NameClaimedActivity {
+                type
+                txHash
+                sld
+                tld
+                createdAt
+                claimedBy
+              }
+              ... on NameRenewedActivity {
+                type
+                txHash
+                sld
+                tld
+                createdAt
+                expiresAt
+              }
+              ... on NameTokenizedActivity {
+                type
+                txHash
+                sld
+                tld
+                createdAt
+                networkId
+              }
+              ... on NameDetokenizedActivity {
+                type
+                txHash
+                sld
+                tld
+                createdAt
+                networkId
+              }
+            }
+            totalCount
+            pageSize
+            currentPage
+            totalPages
+            hasPreviousPage
+            hasNextPage
+          }
+        }
+      `;
 
-      return result.data.nameActivities;
+      const response = await axios.post(
+        config.domaApi.subgraphURL,
+        {
+          query,
+          variables: { name, ...params },
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Api-Key': config.domaApi.apiKey,
+          },
+        }
+      );
+
+      if (response.data.errors) {
+        throw new Error(JSON.stringify(response.data.errors));
+      }
+
+      return response.data.data.nameActivities;
     } catch (error) {
       const err = error as any;
-      console.error('GraphQL query error:', {
-        message: err?.message || err,
-        graphQLErrors: err?.graphQLErrors,
-        networkError: err?.networkError,
-        response: err?.response
-      });
       logger.error({
         error: err?.message || err,
+        responseData: err?.response?.data,
+        responseStatus: err?.response?.status,
         name,
         params,
-        graphQLErrors: err?.graphQLErrors,
-        networkError: err?.networkError,
-        response: err?.response
       }, 'Error fetching name activities');
       throw error;
     }
@@ -458,62 +465,58 @@ export class SubgraphClient {
   async getOffers(
     params: OffersQueryParams = {}
   ): Promise<PaginatedResponse<OfferModel>> {
-    const query = gql`
-      query GetOffers(
-        $tokenId: String
-        $offeredBy: [AddressCAIP10!]
-        $skip: Float
-        $take: Float
-        $status: OfferStatus
-        $sortOrder: SortOrderType
-      ) {
-        offers(
-          tokenId: $tokenId
-          offeredBy: $offeredBy
-          skip: $skip
-          take: $take
-          status: $status
-          sortOrder: $sortOrder
-        ) {
-          items {
-            id
-            externalId
-            price
-            offererAddress
-            orderbook
-            expiresAt
-            createdAt
-            currency {
-              name
-              symbol
-              decimals
-            }
-          }
-          totalCount
-          pageSize
-          currentPage
-          totalPages
-          hasPreviousPage
-          hasNextPage
-        }
-      }
-    `;
-
     try {
-      const result = await this.client.query({
-        query,
-        variables: params,
-      });
+      const query = `
+        query GetOffers($tokenId: String, $offeredBy: [AddressCAIP10!], $skip: Int, $take: Int, $status: OfferStatus, $sortOrder: SortOrderType) {
+          offers(tokenId: $tokenId, offeredBy: $offeredBy, skip: $skip, take: $take, status: $status, sortOrder: $sortOrder) {
+            items {
+              id
+              externalId
+              price
+              offererAddress
+              orderbook
+              expiresAt
+              createdAt
+              currency {
+                name
+                symbol
+                decimals
+              }
+            }
+            totalCount
+            pageSize
+            currentPage
+            totalPages
+            hasPreviousPage
+            hasNextPage
+          }
+        }
+      `;
 
-      return result.data.offers;
+      const response = await axios.post(
+        config.domaApi.subgraphURL,
+        {
+          query,
+          variables: params,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Api-Key': config.domaApi.apiKey,
+          },
+        }
+      );
+
+      if (response.data.errors) {
+        throw new Error(JSON.stringify(response.data.errors));
+      }
+
+      return response.data.data.offers;
     } catch (error) {
       const err = error as any;
       logger.error({
         error: err?.message || err,
         params,
-        graphQLErrors: err?.graphQLErrors,
-        networkError: err?.networkError,
-        response: err?.response
       }, 'Error fetching offers');
       throw error;
     }
@@ -525,65 +528,59 @@ export class SubgraphClient {
   async getListings(
     params: ListingsQueryParams = {}
   ): Promise<PaginatedResponse<ListingModel>> {
-    const query = gql`
-      query GetListings(
-        $skip: Float
-        $take: Float
-        $tlds: [String!]
-        $createdSince: DateTime
-        $sld: String
-        $networkIds: [String!]
-        $registrarIanaIds: [Int!]
-      ) {
-        listings(
-          skip: $skip
-          take: $take
-          tlds: $tlds
-          createdSince: $createdSince
-          sld: $sld
-          networkIds: $networkIds
-          registrarIanaIds: $registrarIanaIds
-        ) {
-          items {
-            id
-            externalId
-            price
-            offererAddress
-            orderbook
-            expiresAt
-            createdAt
-            updatedAt
-            currency {
-              name
-              symbol
-              decimals
-            }
-          }
-          totalCount
-          pageSize
-          currentPage
-          totalPages
-          hasPreviousPage
-          hasNextPage
-        }
-      }
-    `;
-
     try {
-      const result = await this.client.query({
-        query,
-        variables: params,
-      });
+      const query = `
+        query GetListings($skip: Int, $take: Int, $tlds: [String!], $createdSince: DateTime, $sld: String, $networkIds: [String!], $registrarIanaIds: [Int!]) {
+          listings(skip: $skip, take: $take, tlds: $tlds, createdSince: $createdSince, sld: $sld, networkIds: $networkIds, registrarIanaIds: $registrarIanaIds) {
+            items {
+              id
+              externalId
+              price
+              offererAddress
+              orderbook
+              expiresAt
+              createdAt
+              updatedAt
+              currency {
+                name
+                symbol
+                decimals
+              }
+            }
+            totalCount
+            pageSize
+            currentPage
+            totalPages
+            hasPreviousPage
+            hasNextPage
+          }
+        }
+      `;
 
-      return result.data.listings;
+      const response = await axios.post(
+        config.domaApi.subgraphURL,
+        {
+          query,
+          variables: params,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Api-Key': config.domaApi.apiKey,
+          },
+        }
+      );
+
+      if (response.data.errors) {
+        throw new Error(JSON.stringify(response.data.errors));
+      }
+
+      return response.data.data.listings;
     } catch (error) {
       const err = error as any;
       logger.error({
         error: err?.message || err,
         params,
-        graphQLErrors: err?.graphQLErrors,
-        networkError: err?.networkError,
-        response: err?.response
       }, 'Error fetching listings');
       throw error;
     }
