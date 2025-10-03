@@ -151,8 +151,6 @@ export function DomaDashboard() {
         return "Governance";
       case "events":
         return "Network Events";
-      case "settings":
-        return "Settings";
       default:
         return "Dashboard";
     }
@@ -172,8 +170,6 @@ export function DomaDashboard() {
         return "Participate in DAO governance";
       case "events":
         return "Real-time events from Doma Protocol";
-      case "settings":
-        return "Manage your account settings";
       default:
         return `Welcome back, ${userName} • Last login: 2 hours ago`;
     }
@@ -274,7 +270,7 @@ export function DomaDashboard() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setCurrentView("portfolio")}
+                      onClick={() => setCurrentView("pools")}
                     >
                       View All
                       <ChevronRight className="h-4 w-4 ml-1" />
@@ -437,21 +433,6 @@ export function DomaDashboard() {
           {currentView === "events" && (
             <div className="p-6">
               <EventsPage />
-            </div>
-          )}
-
-          {currentView === "settings" && (
-            <div className="flex items-center justify-center h-full p-6">
-              <Card className="max-w-md w-full">
-                <CardHeader>
-                  <CardTitle>Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Settings panel coming soon...
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           )}
         </main>

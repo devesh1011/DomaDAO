@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { NavBar } from "@/components/ui/tubelight-navbar"
-import { Home, TrendingUp, Users, Settings, Wallet, Vote } from "lucide-react"
+import { NavBar } from "@/components/ui/tubelight-navbar";
+import { Home, TrendingUp, Users, Wallet, Vote } from "lucide-react";
 
 const navItems = [
   {
@@ -24,13 +24,8 @@ const navItems = [
     url: "/governance",
     icon: Vote,
   },
-  {
-    name: "Settings",
-    url: "/dashboard", // Use dashboard with settings view
-    icon: Settings,
-  },
-]
+];
 
 export function NavigationBar() {
-  return <NavBar items={navItems} />
+  return <NavBar items={navItems} />;
 }

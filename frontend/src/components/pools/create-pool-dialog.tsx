@@ -116,6 +116,20 @@ export function CreatePoolDialog({
 
     try {
       const usdcService = await getMockUSDCService();
+
+      // First check if user has any USDC
+      const balanceBefore = await usdcService.balanceOf(account);
+      const balanceInUSDC = parseFloat(balanceBefore) / 1e6;
+
+      if (balanceInUSDC < 0.01) {
+        showToast(
+          "error",
+          "❌ You don't have any USDC! Please mint test USDC first using the 'Mint 1000 USDC' button below."
+        );
+        setApprovalLoading(false);
+        return;
+      }
+
       const poolFactoryAddress = getContractAddress("PoolFactory");
 
       // Approve a reasonable amount for pool creation (1000 USDC)
@@ -160,6 +174,16 @@ export function CreatePoolDialog({
         showToast(
           "error",
           "❌ Transaction rejected by user. Please approve to continue."
+        );
+      } else if (error.code === "INSUFFICIENT_FUNDS" || error.code === -32603) {
+        showToast(
+          "error",
+          "❌ Insufficient gas funds. Please get testnet DOMA tokens from the faucet."
+        );
+      } else if (error.message?.includes("Internal JSON-RPC error")) {
+        showToast(
+          "error",
+          "❌ RPC error: This usually means insufficient gas funds. Please get testnet DOMA tokens from the faucet at https://faucet-testnet.doma.xyz"
         );
       } else {
         showToast("error", error.message || "Failed to approve USDC");

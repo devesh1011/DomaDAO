@@ -280,7 +280,8 @@ export function VotingInterface({
                           {votePercentage.toFixed(1)}%
                         </div>
                         <div className="text-xs text-gray-500">
-                          {Number(candidate.voteCount).toLocaleString()} votes
+                          {(Number(candidate.voteCount) / 1e6).toLocaleString()}{" "}
+                          USDC voting power
                         </div>
                       </div>
                     </div>

@@ -8,7 +8,6 @@ import {
   Globe,
   PieChart,
   Vote,
-  Settings,
   Wallet,
   Activity,
 } from "lucide-react";
@@ -60,11 +59,6 @@ const data = {
       title: "Network Events",
       key: "events",
       icon: Activity,
-    },
-    {
-      title: "Settings",
-      key: "settings",
-      icon: Settings,
     },
   ],
 };

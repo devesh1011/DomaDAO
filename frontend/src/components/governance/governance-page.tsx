@@ -1,256 +1,267 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Plus, Vote } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ProposalCard } from "./proposal-card"
-import { ProposalsList } from "./proposals-list"
-import { VotingStats } from "./voting-stats"
-import { CreateProposalModal } from "./create-proposal-modal"
-import { ProposalModal } from "./proposal-modal"
-
-interface Proposal {
-  id: string
-  title: string
-  poolName: string
-  description: string
-  deadline?: Date
-  status?: 'passed' | 'failed' | 'executed'
-  votes: {
-    yes: number
-    no: number
-    abstain: number
-  }
-  totalVotingPower: number
-  userVotingPower?: number
-  userVote?: string | null
-  proposer?: string
-  createdAt: Date
-  executedAt?: Date
-}
-
-// Mock data for proposals
-const mockActiveProposals = [
-  {
-    id: "1",
-    title: "List premium.ai domain for 100 ETH",
-    poolName: "premium.ai",
-    description: "Proposal to list the premium.ai domain in our marketplace with an initial valuation of 100 ETH. This domain has high commercial value and strong brand recognition.",
-    deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-    votes: {
-      yes: 1250,
-      no: 340,
-      abstain: 89
-    },
-    totalVotingPower: 1679,
-    userVotingPower: 150,
-    userVote: null, // null, 'yes', 'no', 'abstain'
-    proposer: "0x742d...a9f2",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-  },
-  {
-    id: "2",
-    title: "Increase revenue distribution to 80%",
-    poolName: "revenue-pool",
-    description: "Proposal to increase the revenue distribution percentage from 70% to 80% for all pool participants. This would provide higher returns to investors.",
-    deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
-    votes: {
-      yes: 890,
-      no: 567,
-      abstain: 123
-    },
-    totalVotingPower: 1580,
-    userVotingPower: 200,
-    userVote: "yes",
-    proposer: "0x8b2d...c4f1",
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
-  }
-]
-
-const mockAllProposals = [
-  ...mockActiveProposals,
-  {
-    id: "3",
-    title: "Add liquidity to DEX pool",
-    poolName: "dex-liquidity",
-    description: "Proposal to add $50,000 in liquidity to the DEX pool to improve trading efficiency.",
-    status: "passed",
-    votes: { yes: 1200, no: 300, abstain: 50 },
-    totalVotingPower: 1550,
-    executedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
-  },
-  {
-    id: "4",
-    title: "Update governance parameters",
-    poolName: "governance",
-    description: "Proposal to update voting quorum requirements from 51% to 60%.",
-    status: "failed",
-    votes: { yes: 400, no: 800, abstain: 100 },
-    totalVotingPower: 1300,
-    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
-  }
-]
+import { AlertCircle, Info } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export function GovernancePage() {
-  const [filter, setFilter] = useState("all") // "all" or "your-pools"
-  const [activeTab, setActiveTab] = useState("all")
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
-  const [showProposalModal, setShowProposalModal] = useState(false)
-
-  const handleProposalClick = (proposal: Proposal) => {
-    setSelectedProposal(proposal)
-    setShowProposalModal(true)
-  }
-
-  const filteredProposals = mockActiveProposals.filter(proposal => {
-    if (filter === "your-pools") {
-      // In a real app, this would check if the user has shares in this pool
-      return proposal.userVotingPower > 0
-    }
-    return true
-  })
-
-  const getFilteredProposals = (status: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (mockAllProposals as any[]).filter((proposal) => {
-      if (status === "all") return true
-      return proposal.status === status
-    })
-  }
-
   return (
     <div className="space-y-6 p-6">
       {/* Governance Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Governance</h2>
-          <p className="text-muted-foreground">
-            Participate in DAO governance and vote on proposals
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Pools</SelectItem>
-              <SelectItem value="your-pools">Your Pools</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Proposal
-          </Button>
-        </div>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-3xl font-bold">Pool Governance</h2>
+        <p className="text-muted-foreground">
+          Governance occurs at the pool level during the voting phase
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Active Proposals Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Vote className="h-5 w-5" />
-                Active Proposals
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {filteredProposals.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredProposals.map((proposal) => (
-                    <ProposalCard
-                      key={proposal.id}
-                      proposal={proposal}
-                      onClick={() => handleProposalClick(proposal)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Vote className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No active proposals</h3>
-                  <p className="text-muted-foreground mb-4">
-                    There are currently no active proposals to vote on.
-                  </p>
-                  <Button onClick={() => setShowCreateModal(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First Proposal
+      {/* Info Card */}
+      <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+            <Info className="h-5 w-5" />
+            How Pool Governance Works
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-blue-900 dark:text-blue-100">
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-semibold mb-1">1. Pool Creation</h4>
+              <p className="text-sm">
+                When a pool is created, it starts in the{" "}
+                <strong>Fundraising</strong> state where investors can
+                contribute USDC.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-1">2. Voting Phase</h4>
+              <p className="text-sm">
+                Once fundraising is complete, the pool enters the{" "}
+                <strong>Voting</strong> state. Contributors can propose domain
+                candidates and vote on which domain to purchase.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-1">
+                3. Contribution-Weighted Voting
+              </h4>
+              <p className="text-sm">
+                Your voting power equals your contribution amount. For example,
+                if you contributed 10 USDC, you have 10 USDC worth of voting
+                power.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-1">4. Domain Purchase</h4>
+              <p className="text-sm">
+                After voting ends, the winning domain is purchased using the
+                pooled funds, and the pool transitions to the{" "}
+                <strong>Purchased</strong> state.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-1">5. Fractionalization</h4>
+              <p className="text-sm">
+                The purchased domain is fractionalized into ERC-20 tokens,
+                giving each contributor ownership shares proportional to their
+                contribution.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* How to Participate Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>How to Participate in Governance</CardTitle>
+          <CardDescription>
+            Follow these steps to participate in pool governance
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 border rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                1
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Join an Active Pool</h4>
+                <p className="text-sm text-muted-foreground">
+                  Go to &quot;Explore Pools&quot; and contribute USDC to a pool
+                  that&apos;s currently in fundraising or voting phase.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-4 border rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                2
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">
+                  Propose Domain Candidates
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  During the voting phase, you can propose domains as candidates
+                  for the pool to purchase. Include the domain name and a
+                  supporting rationale.
+                </p>
+                <div className="mt-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/pools">Find Pools to Propose In →</Link>
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            </div>
 
-          {/* Voting History Tabs */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Proposal History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="passed">Passed</TabsTrigger>
-                  <TabsTrigger value="failed">Failed</TabsTrigger>
-                  <TabsTrigger value="executed">Executed</TabsTrigger>
-                </TabsList>
+            <div className="flex items-start gap-3 p-4 border rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                3
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Cast Your Vote</h4>
+                <p className="text-sm text-muted-foreground">
+                  Vote for your preferred domain candidate. Your voting power
+                  equals your contribution amount. You can only vote once per
+                  pool.
+                </p>
+              </div>
+            </div>
 
-                <TabsContent value="all" className="mt-6">
-                  <ProposalsList
-                    proposals={getFilteredProposals("all")}
-                    onProposalClick={handleProposalClick}
-                  />
-                </TabsContent>
+            <div className="flex items-start gap-3 p-4 border rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                4
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Track Results</h4>
+                <p className="text-sm text-muted-foreground">
+                  Monitor the voting results in real-time. After the voting
+                  window closes, the domain with the most votes will be
+                  purchased.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-                <TabsContent value="passed" className="mt-6">
-                  <ProposalsList
-                    proposals={getFilteredProposals("passed")}
-                    onProposalClick={handleProposalClick}
-                  />
-                </TabsContent>
+      {/* Current Pools with Active Governance */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Find Pools with Active Governance</CardTitle>
+          <CardDescription>
+            Check the &quot;Explore Pools&quot; section to find pools in voting
+            phase
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="p-4 border rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Fundraising Phase</p>
+                  <p className="text-sm text-muted-foreground">
+                    Contribute USDC to secure voting power for the next phase
+                  </p>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium dark:bg-green-900/20 dark:text-green-400">
+                  State: 0
+                </div>
+              </div>
+            </div>
 
-                <TabsContent value="failed" className="mt-6">
-                  <ProposalsList
-                    proposals={getFilteredProposals("failed")}
-                    onProposalClick={handleProposalClick}
-                  />
-                </TabsContent>
+            <div className="p-4 border rounded-lg bg-blue-50/50 dark:bg-blue-950/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Voting Phase</p>
+                  <p className="text-sm text-muted-foreground">
+                    Propose domains and vote on which one to purchase
+                  </p>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-medium dark:bg-blue-900/20 dark:text-blue-400">
+                  State: 1
+                </div>
+              </div>
+            </div>
 
-                <TabsContent value="executed" className="mt-6">
-                  <ProposalsList
-                    proposals={getFilteredProposals("executed")}
-                    onProposalClick={handleProposalClick}
-                  />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Purchased Phase</p>
+                  <p className="text-sm text-muted-foreground">
+                    Voting complete, domain purchased - awaiting
+                    fractionalization
+                  </p>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-medium dark:bg-purple-900/20 dark:text-purple-400">
+                  State: 2
+                </div>
+              </div>
+            </div>
 
-        {/* Sidebar */}
-        <div className="lg:col-span-1">
-          <VotingStats />
-        </div>
-      </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Fractionalized Phase</p>
+                  <p className="text-sm text-muted-foreground">
+                    Domain ownership distributed as ERC-20 tokens
+                  </p>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium dark:bg-yellow-900/20 dark:text-yellow-400">
+                  State: 3
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Modals */}
-      <CreateProposalModal
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-      />
-
-      <ProposalModal
-        proposal={selectedProposal}
-        open={showProposalModal}
-        onOpenChange={setShowProposalModal}
-      />
+      {/* Important Notes */}
+      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+            <AlertCircle className="h-5 w-5" />
+            Important Notes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-amber-900 dark:text-amber-100">
+          <ul className="list-disc list-inside space-y-2 text-sm">
+            <li>
+              You must contribute to a pool during the fundraising phase to
+              participate in governance
+            </li>
+            <li>
+              Voting power is proportional to your contribution amount (1 USDC =
+              1 voting power)
+            </li>
+            <li>You can only vote once per pool - choose carefully</li>
+            <li>
+              The voting window has a specific time limit set by the pool
+              creator
+            </li>
+            <li>
+              After voting ends, the domain with the most votes will be
+              automatically selected
+            </li>
+            <li>
+              All governance happens on-chain via smart contracts - votes are
+              immutable
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }

@@ -1,17 +1,21 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { CalendarDays } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PortfolioSummary } from "./portfolio-summary"
-import { PortfolioChart } from "./portfolio-chart"
-import { InvestmentsTable } from "./investments-table"
-import { RevenueHistory } from "./revenue-history"
-import { GovernanceParticipation } from "./governance-participation"
-import { PerformanceAnalytics } from "./performance-analytics"
+import { useState } from "react";
+import { CalendarDays } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PortfolioSummary } from "./portfolio-summary";
+import { PortfolioChart } from "./portfolio-chart";
+import { InvestmentsTable } from "./investments-table";
+import { GovernanceParticipation } from "./governance-participation";
 
 export function PortfolioPage() {
-  const [dateRange, setDateRange] = useState("30d")
+  const [dateRange, setDateRange] = useState("30d");
 
   return (
     <div className="space-y-6">
@@ -40,7 +44,7 @@ export function PortfolioPage() {
       </div>
 
       {/* Summary Cards */}
-      <PortfolioSummary dateRange={dateRange} />
+      <PortfolioSummary />
 
       {/* Portfolio Value Chart */}
       <PortfolioChart dateRange={dateRange} />
@@ -48,14 +52,8 @@ export function PortfolioPage() {
       {/* My Investments Table */}
       <InvestmentsTable />
 
-      {/* Revenue History Section */}
-      <RevenueHistory />
-
       {/* Governance Participation */}
       <GovernanceParticipation />
-
-      {/* Performance Analytics */}
-      <PerformanceAnalytics />
     </div>
-  )
+  );
 }

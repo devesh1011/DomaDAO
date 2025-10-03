@@ -91,8 +91,14 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
    */
   const loadPoolInfo = useCallback(async () => {
     try {
+      console.log("🔄 Loading pool info for:", poolAddress);
       const poolService = await getReadOnlyFractionPoolService(poolAddress);
       const info = await poolService.getPoolInfo();
+      console.log("📊 Pool info loaded:", {
+        state: info.state,
+        winningDomain: info.winningDomain,
+        poolName: info.poolName,
+      });
       setPoolInfo(info);
 
       // Load contributors
@@ -102,6 +108,7 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
       // Load candidates
       const candidatesList = await poolService.getAllCandidates();
       setCandidates(candidatesList);
+      console.log("✅ Pool info refresh complete");
 
       // Load user contribution and voting status if connected
       if (account) {
@@ -756,8 +763,17 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                 </div>
               )}
               {poolInfo.state === PoolState.Voting && (
-                <div className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
-                  🗳️ Voting Phase Active
+                <div className="mt-2 text-xs font-medium">
+                  {poolInfo.winningDomain ? (
+                    <span className="text-green-600 dark:text-green-400">
+                      ✅ Winner Selected: {poolInfo.winningDomain} - Ready for
+                      Purchase
+                    </span>
+                  ) : (
+                    <span className="text-blue-600 dark:text-blue-400">
+                      🗳️ Voting Phase Active
+                    </span>
+                  )}
                 </div>
               )}
             </CardHeader>

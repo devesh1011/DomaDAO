@@ -106,6 +106,7 @@ export function PurchaseFractionalize({
 
   /**
    * Create a buy offer via Doma Orderbook API
+   * OR bypass with demo mode for Mock NFT
    */
   const handleCreateOffer = async () => {
     if (!nftContractInput || !tokenIdInput || !offerAmountInput) {
@@ -117,6 +118,17 @@ export function PurchaseFractionalize({
       setPurchaseStep("creating-offer");
       setError(null);
 
+      // Demo mode: Skip orderbook for Mock NFT
+      const MOCK_NFT_ADDRESS = "0x387196B48B566e84772f34382D4f10B0460867B5";
+      if (nftContractInput.toLowerCase() === MOCK_NFT_ADDRESS.toLowerCase()) {
+        // Simulate order creation success
+        setOrderId("demo-order-" + Date.now());
+        setError(null);
+        setPurchaseStep("idle");
+        return;
+      }
+
+      // Real flow: Use Doma Orderbook API
       const purchaseService = getDomainPurchaseService();
       const paymentTokenAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS || "";
 
@@ -148,7 +160,7 @@ export function PurchaseFractionalize({
 
   /**
    * Record domain purchase on-chain
-   * User must provide transaction hash after NFT transfer is complete
+   * Demo mode: Automatically mint and use Mock NFT
    */
   const handleRecordPurchase = async () => {
     if (!nftContractInput || !tokenIdInput || !purchaseTxHashInput) {
@@ -160,6 +172,75 @@ export function PurchaseFractionalize({
       setPurchaseStep("recording");
       setError(null);
 
+      // Demo mode: Mint Mock NFT and record purchase seamlessly
+      const MOCK_NFT_ADDRESS = "0x387196B48B566e84772f34382D4f10B0460867B5";
+      if (nftContractInput.toLowerCase() === MOCK_NFT_ADDRESS.toLowerCase()) {
+        const { ethers } = await import("ethers");
+        const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const signer = await provider.getSigner();
+
+        const MockNFT_ABI = [
+          "function mint(address to) external returns (uint256)",
+          "function ownerOf(uint256 tokenId) view returns (address)",
+        ];
+
+        const mockNFT = new ethers.Contract(
+          MOCK_NFT_ADDRESS,
+          MockNFT_ABI,
+          signer
+        );
+
+        // Mint NFT to pool and get the actual token ID
+        let actualTokenId = tokenIdInput;
+        try {
+          const mintTx = await mockNFT.mint(poolAddress);
+          const receipt = await mintTx.wait();
+
+          // Get the token ID from the Transfer event
+          const transferEvent = receipt.logs.find((log: any) => {
+            try {
+              const parsed = mockNFT.interface.parseLog(log);
+              return parsed?.name === "Transfer";
+            } catch {
+              return false;
+            }
+          });
+
+          if (transferEvent) {
+            const parsed = mockNFT.interface.parseLog(transferEvent);
+            actualTokenId = parsed?.args[2].toString();
+            console.log("Minted NFT with token ID:", actualTokenId);
+          }
+        } catch (mintError: any) {
+          // Token might already exist, check ownership
+          try {
+            const owner = await mockNFT.ownerOf(actualTokenId);
+            if (owner.toLowerCase() !== poolAddress.toLowerCase()) {
+              throw new Error("NFT not owned by pool and failed to mint");
+            }
+          } catch (e) {
+            console.error("Error handling NFT:", e);
+            throw new Error("Failed to prepare NFT for purchase recording");
+          }
+        }
+
+        // Record purchase with the actual token ID
+        const poolService = await getFractionPoolService(poolAddress);
+        const tx = await poolService.recordDomainPurchase(
+          nftContractInput,
+          actualTokenId,
+          purchaseTxHashInput
+        );
+
+        setTxHash(tx.hash);
+        await tx.wait();
+
+        setPurchaseStep("idle");
+        onSuccess();
+        return;
+      }
+
+      // Real flow: Record purchase directly
       const poolService = await getFractionPoolService(poolAddress);
       const tx = await poolService.recordDomainPurchase(
         nftContractInput,
@@ -349,7 +430,9 @@ export function PurchaseFractionalize({
                 {winningCandidate.domainName}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                Total Votes: {Number(winningCandidate.voteCount)} USDC
+                Total Voting Power:{" "}
+                {(Number(winningCandidate.voteCount) / 1e6).toLocaleString()}{" "}
+                USDC
               </p>
             </div>
           </CardContent>
