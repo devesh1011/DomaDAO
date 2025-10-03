@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Doma Orderbook API Integration
  * Handles domain marketplace operations (listings, offers, purchases)
@@ -99,7 +98,16 @@ export class DomaOrderbookService {
     contractAddress: string,
     chainId: string = DOMA_CHAIN_ID
   ): Promise<GetOrderbookFeeResponse> {
-    const url = `${this.baseUrl}/v1/orderbook/fee/${orderbook}/${chainId}/${contractAddress}`;
+    // Ensure orderbook value is uppercase (DOMA, OPENSEA)
+    const orderbookUpper = orderbook.toUpperCase();
+    const url = `${this.baseUrl}/v1/orderbook/fee/${orderbookUpper}/${chainId}/${contractAddress}`;
+
+    console.log("Fetching orderbook fees:", {
+      orderbook: orderbookUpper,
+      chainId,
+      contractAddress,
+      url,
+    });
 
     const response = await fetch(url, {
       method: "GET",
@@ -111,6 +119,11 @@ export class DomaOrderbookService {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error("Failed to get orderbook fees:", {
+        status: response.status,
+        statusText: response.statusText,
+        error,
+      });
       throw new Error(`Failed to get orderbook fees: ${error}`);
     }
 
@@ -125,7 +138,9 @@ export class DomaOrderbookService {
     orderbook: string,
     chainId: string = DOMA_CHAIN_ID
   ): Promise<CurrenciesResponse> {
-    const url = `${this.baseUrl}/v1/orderbook/currencies/${chainId}/${contractAddress}/${orderbook}`;
+    // Ensure orderbook value is uppercase (DOMA, OPENSEA)
+    const orderbookUpper = orderbook.toUpperCase();
+    const url = `${this.baseUrl}/v1/orderbook/currencies/${chainId}/${contractAddress}/${orderbookUpper}`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -149,13 +164,19 @@ export class DomaOrderbookService {
   async createOffer(request: CreateOfferRequest): Promise<CreateOfferResponse> {
     const url = `${this.baseUrl}/v1/orderbook/offer`;
 
+    // Ensure orderbook value is uppercase
+    const normalizedRequest = {
+      ...request,
+      orderbook: request.orderbook.toUpperCase(),
+    };
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Api-Key": this.apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(normalizedRequest),
     });
 
     if (!response.ok) {

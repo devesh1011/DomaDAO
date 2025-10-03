@@ -1,38 +1,39 @@
-import { ethers, BrowserProvider, Contract } from 'ethers'
-import MockUSDCABI from '@/contracts/MockUSDC.json'
-import { getContractAddress } from './addresses'
+import { ethers, BrowserProvider, Contract } from "ethers";
+import MockUSDCABI from "@/contracts/MockUSDC.json";
+import { getContractAddress } from "./addresses";
+import { getDomaTransactionOptions } from "@/lib/utils/gas";
 
 /**
  * Service for interacting with the MockUSDC (ERC-20) contract
  */
 export class MockUSDCService {
-  private static instance: MockUSDCService | null = null
-  private contract: Contract | null = null
-  private provider: BrowserProvider | null = null
-  private signer: ethers.Signer | null = null
+  private static instance: MockUSDCService | null = null;
+  private contract: Contract | null = null;
+  private provider: BrowserProvider | null = null;
+  private signer: ethers.Signer | null = null;
 
   private constructor() {}
 
   static getInstance(): MockUSDCService {
     if (!MockUSDCService.instance) {
-      MockUSDCService.instance = new MockUSDCService()
+      MockUSDCService.instance = new MockUSDCService();
     }
-    return MockUSDCService.instance
+    return MockUSDCService.instance;
   }
 
   /**
    * Initialize the service with MetaMask provider
    */
   async initialize() {
-    if (typeof window.ethereum === 'undefined') {
-      throw new Error('MetaMask not installed')
+    if (typeof window.ethereum === "undefined") {
+      throw new Error("MetaMask not installed");
     }
 
-    this.provider = new BrowserProvider(window.ethereum)
-    this.signer = await this.provider.getSigner()
-    
-    const usdcAddress = getContractAddress('MockUSDC')
-    this.contract = new Contract(usdcAddress, MockUSDCABI.abi, this.signer)
+    this.provider = new BrowserProvider(window.ethereum);
+    this.signer = await this.provider.getSigner();
+
+    const usdcAddress = getContractAddress("MockUSDC");
+    this.contract = new Contract(usdcAddress, MockUSDCABI.abi, this.signer);
   }
 
   /**
@@ -40,9 +41,9 @@ export class MockUSDCService {
    */
   private async getContract(): Promise<Contract> {
     if (!this.contract) {
-      await this.initialize()
+      await this.initialize();
     }
-    return this.contract!
+    return this.contract!;
   }
 
   /**
@@ -51,9 +52,9 @@ export class MockUSDCService {
    * @returns Balance in USDC (6 decimals)
    */
   async balanceOf(address: string): Promise<string> {
-    const contract = await this.getContract()
-    const balance = await contract.balanceOf(address)
-    return ethers.formatUnits(balance, 6)
+    const contract = await this.getContract();
+    const balance = await contract.balanceOf(address);
+    return ethers.formatUnits(balance, 6);
   }
 
   /**
@@ -62,8 +63,8 @@ export class MockUSDCService {
    * @returns Balance as bigint
    */
   async balanceOfRaw(address: string): Promise<bigint> {
-    const contract = await this.getContract()
-    return await contract.balanceOf(address)
+    const contract = await this.getContract();
+    return await contract.balanceOf(address);
   }
 
   /**
@@ -73,9 +74,9 @@ export class MockUSDCService {
    * @returns Allowance in USDC (6 decimals)
    */
   async allowance(owner: string, spender: string): Promise<string> {
-    const contract = await this.getContract()
-    const allowance = await contract.allowance(owner, spender)
-    return ethers.formatUnits(allowance, 6)
+    const contract = await this.getContract();
+    const allowance = await contract.allowance(owner, spender);
+    return ethers.formatUnits(allowance, 6);
   }
 
   /**
@@ -85,8 +86,8 @@ export class MockUSDCService {
    * @returns Allowance as bigint
    */
   async allowanceRaw(owner: string, spender: string): Promise<bigint> {
-    const contract = await this.getContract()
-    return await contract.allowance(owner, spender)
+    const contract = await this.getContract();
+    return await contract.allowance(owner, spender);
   }
 
   /**
@@ -96,11 +97,24 @@ export class MockUSDCService {
    * @returns Transaction response
    */
   async approve(spender: string, amount: string) {
-    const contract = await this.getContract()
-    const amountInSmallestUnit = ethers.parseUnits(amount, 6)
-    
-    const tx = await contract.approve(spender, amountInSmallestUnit)
-    return tx
+    const contract = await this.getContract();
+    const amountInSmallestUnit = ethers.parseUnits(amount, 6);
+
+    // Estimate gas first
+    const gasEstimate = await contract.approve.estimateGas(
+      spender,
+      amountInSmallestUnit
+    );
+
+    // Get transaction options for Doma Testnet (legacy gas pricing)
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate,
+      120
+    );
+
+    const tx = await contract.approve(spender, amountInSmallestUnit, txOptions);
+    return tx;
   }
 
   /**
@@ -110,9 +124,20 @@ export class MockUSDCService {
    * @returns Transaction response
    */
   async approveRaw(spender: string, amountRaw: bigint) {
-    const contract = await this.getContract()
-    const tx = await contract.approve(spender, amountRaw)
-    return tx
+    const contract = await this.getContract();
+
+    // Estimate gas first
+    const gasEstimate = await contract.approve.estimateGas(spender, amountRaw);
+
+    // Get transaction options for Doma Testnet (legacy gas pricing)
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate,
+      120
+    );
+
+    const tx = await contract.approve(spender, amountRaw, txOptions);
+    return tx;
   }
 
   /**
@@ -123,36 +148,36 @@ export class MockUSDCService {
    * @returns true if allowance >= required
    */
   async hasEnoughAllowance(
-    owner: string, 
-    spender: string, 
+    owner: string,
+    spender: string,
     requiredAmount: bigint
   ): Promise<boolean> {
-    const allowance = await this.allowanceRaw(owner, spender)
-    return allowance >= requiredAmount
+    const allowance = await this.allowanceRaw(owner, spender);
+    return allowance >= requiredAmount;
   }
 
   /**
    * Get token decimals (always 6 for USDC)
    */
   async decimals(): Promise<number> {
-    const contract = await this.getContract()
-    return await contract.decimals()
+    const contract = await this.getContract();
+    return await contract.decimals();
   }
 
   /**
    * Get token symbol
    */
   async symbol(): Promise<string> {
-    const contract = await this.getContract()
-    return await contract.symbol()
+    const contract = await this.getContract();
+    return await contract.symbol();
   }
 
   /**
    * Get token name
    */
   async name(): Promise<string> {
-    const contract = await this.getContract()
-    return await contract.name()
+    const contract = await this.getContract();
+    return await contract.name();
   }
 
   /**
@@ -161,10 +186,10 @@ export class MockUSDCService {
    * @param amount Amount in USDC
    */
   async mint(to: string, amount: string) {
-    const contract = await this.getContract()
-    const amountInSmallestUnit = ethers.parseUnits(amount, 6)
-    const tx = await contract.mint(to, amountInSmallestUnit)
-    return tx
+    const contract = await this.getContract();
+    const amountInSmallestUnit = ethers.parseUnits(amount, 6);
+    const tx = await contract.mint(to, amountInSmallestUnit);
+    return tx;
   }
 
   /**
@@ -173,9 +198,9 @@ export class MockUSDCService {
    * @param amount Amount in USDC
    */
   async estimateApproveGas(spender: string, amount: string): Promise<bigint> {
-    const contract = await this.getContract()
-    const amountInSmallestUnit = ethers.parseUnits(amount, 6)
-    return await contract.approve.estimateGas(spender, amountInSmallestUnit)
+    const contract = await this.getContract();
+    const amountInSmallestUnit = ethers.parseUnits(amount, 6);
+    return await contract.approve.estimateGas(spender, amountInSmallestUnit);
   }
 
   /**
@@ -184,8 +209,8 @@ export class MockUSDCService {
    * @returns Formatted string (e.g., "100.50 USDC")
    */
   formatAmount(amountRaw: bigint): string {
-    const formatted = ethers.formatUnits(amountRaw, 6)
-    return `${parseFloat(formatted).toLocaleString()} USDC`
+    const formatted = ethers.formatUnits(amountRaw, 6);
+    return `${parseFloat(formatted).toLocaleString()} USDC`;
   }
 
   /**
@@ -194,7 +219,7 @@ export class MockUSDCService {
    * @returns Amount in smallest unit as bigint
    */
   parseAmount(amount: string): bigint {
-    return ethers.parseUnits(amount, 6)
+    return ethers.parseUnits(amount, 6);
   }
 }
 
@@ -202,7 +227,7 @@ export class MockUSDCService {
  * Get singleton instance of MockUSDCService
  */
 export async function getMockUSDCService(): Promise<MockUSDCService> {
-  const service = MockUSDCService.getInstance()
-  await service.initialize()
-  return service
+  const service = MockUSDCService.getInstance();
+  await service.initialize();
+  return service;
 }

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { useWallet } from "@/contexts/wallet-context";
 import { getPoolFactoryService } from "@/lib/contracts/pool-factory";
@@ -64,6 +65,7 @@ export function CreatePoolDialog({
     totalShares: "10000000", // 10 million shares
     pricePerShare: "10", // 10 USDC per share (will be converted to 10000000 with 6 decimals)
     duration: "30", // 30 days for purchase window
+    isDemoMode: true, // Enable demo mode for testing
   });
 
   const showToast = (type: "success" | "error", message: string) => {
@@ -250,6 +252,7 @@ export function CreatePoolDialog({
             Math.floor(parseFloat(formData.pricePerShare) * 1e6)
           ).toString(), // Convert to USDC with 6 decimals
           durationInDays: formData.duration,
+          isDemoMode: formData.isDemoMode,
         });
 
       setTxHash(transaction.hash);
@@ -283,6 +286,7 @@ export function CreatePoolDialog({
             totalShares: "10000000",
             pricePerShare: "10",
             duration: "30",
+            isDemoMode: false,
           });
           setTxHash(null);
           setPoolAddress(null);
@@ -451,6 +455,24 @@ export function CreatePoolDialog({
                 </p>
               </div>
 
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="demoMode"
+                  checked={formData.isDemoMode}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isDemoMode: checked as boolean })
+                  }
+                />
+                <Label htmlFor="demoMode" className="text-sm font-medium">
+                  Enable Demo Mode
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.isDemoMode
+                  ? "⚡ Fast testing: 2min contribute + 1min vote + 2min purchase"
+                  : "Normal mode: 7 days contribute + 3 days vote + custom purchase window"}
+              </p>
+
               <div className="bg-muted p-4 rounded-lg text-sm">
                 <p className="font-medium mb-2">Pool Details:</p>
                 <ul className="space-y-1 text-muted-foreground">
@@ -470,8 +492,10 @@ export function CreatePoolDialog({
                   <li>• Network: DOMA Testnet</li>
                   <li>• Payment Token: USDC (Mock)</li>
                   <li>
-                    • Timeline: 7d contribute + 3d vote + {formData.duration}d
-                    purchase
+                    • Timeline:{" "}
+                    {formData.isDemoMode
+                      ? "2min contribute + 1min vote + 2min purchase"
+                      : `7d contribute + 3d vote + ${formData.duration}d purchase`}
                   </li>
                   {usdcBalance && (
                     <li className="flex items-center justify-between">

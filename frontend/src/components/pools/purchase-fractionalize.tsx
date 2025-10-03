@@ -73,10 +73,13 @@ export function PurchaseFractionalize({
   const [fractionalTokenAddress, setFractionalTokenAddress] = useState("");
 
   // Check if voting is finalized and pool is in purchasing state
-  const canPurchase = poolInfo.state === 1; // Voting state - needs finalization
-  const isPurchasing = poolInfo.state === 2; // Purchasing state
-  const isPurchased = poolInfo.state === 3; // Purchased state
-  const isFractionalized = poolInfo.state === 4; // Fractionalized state
+  const isVotingState = poolInfo.state === 1; // Voting state
+  const hasWinner =
+    winningCandidate !== null && winningCandidate.domainName !== "";
+  const canFinalizeVoting = isVotingState && !hasWinner; // Can finalize if no winner yet
+  const canPurchase = isVotingState && hasWinner; // Can purchase after voting is finalized
+  const isPurchased = poolInfo.state === 2; // Purchased state
+  const isFractionalized = poolInfo.state === 3; // Fractionalized state
 
   /**
    * Finalize voting to move to purchase phase
@@ -157,9 +160,8 @@ export function PurchaseFractionalize({
       setPurchaseStep("recording");
       setError(null);
 
-      const purchaseService = getDomainPurchaseService();
-      const tx = await purchaseService.recordPurchase(
-        poolAddress,
+      const poolService = await getFractionPoolService(poolAddress);
+      const tx = await poolService.recordDomainPurchase(
         nftContractInput,
         tokenIdInput,
         purchaseTxHashInput
@@ -292,7 +294,7 @@ export function PurchaseFractionalize({
       )}
 
       {/* Step 1: Finalize Voting */}
-      {canPurchase && (
+      {canFinalizeVoting && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -304,17 +306,12 @@ export function PurchaseFractionalize({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {winningCandidate && (
-              <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-sm font-medium mb-1">Winning Domain:</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {winningCandidate.domainName}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-                  {Number(winningCandidate.voteCount)} votes
-                </p>
-              </div>
-            )}
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                ⏳ Voting period has ended. Click below to finalize and
+                determine the winner.
+              </p>
+            </div>
 
             <Button
               onClick={handleFinalizeVoting}
@@ -334,8 +331,33 @@ export function PurchaseFractionalize({
         </Card>
       )}
 
+      {/* Winning Domain Display */}
+      {hasWinner && winningCandidate && (
+        <Card className="border-green-200 dark:border-green-800">
+          <CardHeader className="bg-green-50 dark:bg-green-950/20">
+            <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-5 w-5" />
+              Winning Domain Selected
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border border-green-200 dark:border-green-800">
+              <p className="text-sm font-medium mb-1 text-gray-600 dark:text-gray-400">
+                Selected Domain:
+              </p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {winningCandidate.domainName}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                Total Votes: {Number(winningCandidate.voteCount)} USDC
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Step 2: Purchase Domain */}
-      {(isPurchasing || isPurchased || isFractionalized) && (
+      {(canPurchase || isPurchased || isFractionalized) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

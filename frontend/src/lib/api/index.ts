@@ -3,10 +3,11 @@
  * Central export for all API services
  */
 
-export * from './pools'
-export * from './domains'
-export * from './health'
+export * from "./pools";
+export * from "./domains";
+export * from "./health";
+export * from "./portfolio";
 
 // Re-export types and client for convenience
-export * from '../api-types'
-export { apiClient, type ApiError } from '../api-client'
+export * from "../api-types";
+export { apiClient, type ApiError } from "../api-client";

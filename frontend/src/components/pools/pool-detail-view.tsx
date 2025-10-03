@@ -71,9 +71,11 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
   const [loading, setLoading] = useState(true);
   const [contributing, setContributing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [startingVoting, setStartingVoting] = useState(false);
 
   const [contributionAmount, setContributionAmount] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(Math.floor(Date.now() / 1000));
   const [status, setStatus] = useState<{
     type: "success" | "error" | null;
     message: string;
@@ -169,6 +171,15 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
       checkUSDCStatus();
     }
   }, [account, isConnected, checkUSDCStatus]);
+
+  // Auto-refresh timer for countdown (update every second)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Math.floor(Date.now() / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   /**
    * Handle USDC approval
@@ -297,6 +308,62 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
   };
 
   /**
+   * Handle starting voting phase (owner only)
+   */
+  const handleStartVoting = async () => {
+    if (!isConnected) {
+      showToast("error", "Please connect your wallet first");
+      await connectWallet();
+      return;
+    }
+
+    if (!isCorrectNetwork) {
+      showToast("error", "Please switch to DOMA Testnet");
+      await switchToDomaNetwork();
+      return;
+    }
+
+    setStartingVoting(true);
+
+    try {
+      const poolService = await getFractionPoolService(poolAddress);
+
+      showToast("success", "Please confirm the transaction in MetaMask...");
+      const tx = await poolService.startVoting();
+
+      showToast(
+        "success",
+        `Transaction submitted! Hash: ${tx.hash.slice(0, 10)}...`
+      );
+
+      showToast("success", "Waiting for confirmation...");
+      await tx.wait();
+
+      showToast("success", "Voting phase started! Contributors can now vote.");
+
+      // Reload pool info
+      await loadPoolInfo();
+    } catch (error: any) {
+      console.error("Error starting voting:", error);
+
+      if (error.code === "ACTION_REJECTED") {
+        showToast("error", "Transaction rejected by user");
+      } else if (error.message?.includes("Contribution window not ended")) {
+        showToast(
+          "error",
+          "Cannot start voting - contribution window is still active"
+        );
+      } else if (error.message?.includes("Invalid status")) {
+        showToast("error", "Pool is not in fundraising status");
+      } else {
+        showToast("error", error.message || "Failed to start voting");
+      }
+    } finally {
+      setStartingVoting(false);
+    }
+  };
+
+  /**
    * Mint test USDC
    */
   const handleMintUSDC = async () => {
@@ -351,8 +418,17 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
       ? (Number(poolInfo.totalRaised) / Number(poolInfo.targetRaise)) * 100
       : 0;
 
-  const timeRemaining =
-    Number(poolInfo.endTimestamp) - Math.floor(Date.now() / 1000);
+  // Calculate time remaining based on pool state
+  let targetTimestamp: bigint;
+  if (poolInfo.state === PoolState.Fundraising) {
+    targetTimestamp = poolInfo.endTimestamp;
+  } else if (poolInfo.state === PoolState.Voting) {
+    targetTimestamp = poolInfo.votingEnd;
+  } else {
+    targetTimestamp = poolInfo.purchaseWindowEnd;
+  }
+
+  const timeRemaining = Math.max(0, Number(targetTimestamp) - currentTime);
   const daysRemaining = Math.max(0, Math.floor(timeRemaining / 86400));
 
   return (
@@ -375,36 +451,66 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
               </code>
               <Badge
                 className={
-                  poolInfo.state === PoolState.Active
+                  poolInfo.state === PoolState.Fundraising
                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                     : poolInfo.state === PoolState.Voting
                     ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                    : poolInfo.state === PoolState.Purchased
+                    ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300"
+                    : poolInfo.state === PoolState.Fractionalized
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300"
                     : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
                 }
               >
-                {poolInfo.state === PoolState.Active && "Active"}
+                {poolInfo.state === PoolState.Fundraising && "Fundraising"}
                 {poolInfo.state === PoolState.Voting && "Voting"}
-                {poolInfo.state === PoolState.Purchasing && "Purchasing"}
+                {poolInfo.state === PoolState.Purchased && "Purchased"}
                 {poolInfo.state === PoolState.Fractionalized &&
                   "Fractionalized"}
-                {poolInfo.state === PoolState.Failed && "Failed"}
-                {poolInfo.state === PoolState.Cancelled && "Cancelled"}
+                {poolInfo.state === PoolState.Closed && "Closed"}
+                {poolInfo.state === PoolState.Disputed && "Disputed"}
               </Badge>
             </div>
           </div>
 
-          {/* Admin Button for Pool Owner */}
-          {account &&
-            poolInfo.creator.toLowerCase() === account.toLowerCase() && (
-              <Button
-                onClick={() => router.push(`/pools/${poolAddress}/admin`)}
-                variant="outline"
-                className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Admin Panel
-              </Button>
-            )}
+          <div className="flex gap-3">
+            {/* Start Voting Button (Owner only, Fundraising state) */}
+            {account &&
+              poolInfo.creator.toLowerCase() === account.toLowerCase() &&
+              poolInfo.state === PoolState.Fundraising &&
+              timeRemaining <= 0 && (
+                <Button
+                  onClick={handleStartVoting}
+                  disabled={startingVoting}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {startingVoting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Starting Voting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Start Voting Phase
+                    </>
+                  )}
+                </Button>
+              )}
+
+            {/* Admin Button for Pool Owner */}
+            {account &&
+              poolInfo.creator.toLowerCase() === account.toLowerCase() && (
+                <Button
+                  onClick={() => router.push(`/pools/${poolAddress}/admin`)}
+                  variant="outline"
+                  className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-950"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Admin Panel
+                </Button>
+              )}
+          </div>
         </div>
       </div>
 
@@ -463,10 +569,24 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                 <div className="text-center">
                   <Clock className="w-5 h-5 mx-auto mb-1 text-gray-400" />
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {daysRemaining}
+                    {timeRemaining > 0
+                      ? timeRemaining > 86400
+                        ? `${daysRemaining}d`
+                        : timeRemaining > 3600
+                        ? `${Math.floor(timeRemaining / 3600)}h ${Math.floor(
+                            (timeRemaining % 3600) / 60
+                          )}m`
+                        : `${Math.floor(timeRemaining / 60)}m ${
+                            timeRemaining % 60
+                          }s`
+                      : "0"}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-400">
-                    Days Left
+                    {poolInfo.state === PoolState.Fundraising
+                      ? "Until Voting"
+                      : poolInfo.state === PoolState.Voting
+                      ? "Until Purchase"
+                      : "Time Left"}
                   </div>
                 </div>
                 <div className="text-center">
@@ -573,9 +693,11 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                 poolAddress={poolAddress}
                 poolInfo={poolInfo}
                 winningCandidate={
-                  candidates.find(
-                    (_, index) => index === Number(poolInfo.winningCandidate)
-                  ) || null
+                  poolInfo.winningDomain
+                    ? candidates.find(
+                        (c) => c.domainName === poolInfo.winningDomain
+                      ) || null
+                    : null
                 }
                 userContribution={userContribution}
                 onSuccess={loadPoolInfo}
@@ -620,6 +742,24 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
             <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
               <CardTitle>Contribute to Pool</CardTitle>
               <CardDescription>Invest in this domain pool</CardDescription>
+              {poolInfo.state === PoolState.Fundraising && (
+                <div className="mt-2 text-xs font-medium">
+                  {timeRemaining > 0 ? (
+                    <span className="text-green-600 dark:text-green-400">
+                      ✓ Contribution Window Open
+                    </span>
+                  ) : (
+                    <span className="text-orange-600 dark:text-orange-400">
+                      ⏳ Contribution Window Ended - Owner must start voting
+                    </span>
+                  )}
+                </div>
+              )}
+              {poolInfo.state === PoolState.Voting && (
+                <div className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
+                  🗳️ Voting Phase Active
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
               {/* USDC Balance */}
@@ -724,7 +864,12 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white"
                 onClick={handleContribute}
                 disabled={
-                  contributing || approving || !hasApproval || !isConnected
+                  contributing ||
+                  approving ||
+                  !hasApproval ||
+                  !isConnected ||
+                  poolInfo.state !== PoolState.Fundraising ||
+                  timeRemaining <= 0
                 }
               >
                 {contributing ? (
@@ -732,6 +877,10 @@ export function PoolDetailView({ poolAddress }: PoolDetailViewProps) {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Contributing...
                   </>
+                ) : poolInfo.state !== PoolState.Fundraising ? (
+                  "Contribution Phase Ended"
+                ) : timeRemaining <= 0 ? (
+                  "Contribution Window Closed"
                 ) : (
                   <>
                     <TrendingUp className="mr-2 h-4 w-4" />

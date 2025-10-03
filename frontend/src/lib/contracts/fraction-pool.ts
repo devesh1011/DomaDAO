@@ -1,17 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BrowserProvider, Contract, TransactionResponse } from "ethers";
 import FractionPoolABI from "@/contracts/FractionPool.json";
+import { getDomaTransactionOptions } from "@/lib/utils/gas";
 
 /**
  * Pool state enum matching Solidity contract
  */
 export enum PoolState {
-  Active = 0,
+  Fundraising = 0,
   Voting = 1,
-  Purchasing = 2,
+  Purchased = 2,
   Fractionalized = 3,
-  Failed = 4,
-  Cancelled = 5,
+  Closed = 4,
+  Disputed = 5,
 }
 
 /**
@@ -53,7 +54,7 @@ export interface PoolInfo {
   state: PoolState;
   contributorCount: bigint;
   candidateCount: bigint;
-  winningCandidate: number;
+  winningDomain: string; // Changed from winningCandidate number to winningDomain string
   domainNFT: string;
   domainTokenId: bigint;
   fractionToken: string;
@@ -196,7 +197,7 @@ export class FractionPoolService {
       state: Number(status) as PoolState,
       contributorCount: contributors.length,
       candidateCount: domainCandidates.length,
-      winningCandidate: Number(winningCandidate),
+      winningDomain: winningCandidate, // This is the winning domain name (string)
       domainNFT,
       domainTokenId,
       fractionToken,
@@ -214,19 +215,15 @@ export class FractionPoolService {
     // Convert to smallest unit (6 decimals for USDC)
     const amountRaw = BigInt(Math.floor(parseFloat(amount) * 1e6));
 
-    // Estimate gas first to avoid RPC errors
-    let gasLimit;
-    try {
-      gasLimit = await contract.contribute.estimateGas(amountRaw);
-      // Add 20% buffer for safety
-      gasLimit = (gasLimit * BigInt(120)) / BigInt(100);
-    } catch (error) {
-      console.warn("Gas estimation failed, using default gas limit:", error);
-      // Fallback gas limit for contribution transactions
-      gasLimit = BigInt(300000);
-    }
+    // Estimate gas and get transaction options for Doma Testnet
+    const gasEstimate = await contract.contribute.estimateGas(amountRaw);
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate,
+      120
+    );
 
-    const tx = await contract.contribute(amountRaw, { gasLimit });
+    const tx = await contract.contribute(amountRaw, txOptions);
     return tx;
   }
 
@@ -270,7 +267,14 @@ export class FractionPoolService {
    */
   async addDomainCandidate(domainName: string): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.addDomainCandidate(domainName);
+    const gasEstimate = await contract.addDomainCandidate.estimateGas(
+      domainName
+    );
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.addDomainCandidate(domainName, txOptions);
     return tx;
   }
 
@@ -327,7 +331,12 @@ export class FractionPoolService {
    */
   async castVote(domainName: string): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.castVote(domainName);
+    const gasEstimate = await contract.castVote.estimateGas(domainName);
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.castVote(domainName, txOptions);
     return tx;
   }
 
@@ -340,30 +349,68 @@ export class FractionPoolService {
   }
 
   /**
+   * Start voting phase (owner only)
+   * Transitions pool from Fundraising to Voting status
+   */
+  async startVoting(): Promise<TransactionResponse> {
+    const contract = this.ensureInitialized();
+    const gasEstimate = await contract.startVoting.estimateGas();
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.startVoting(txOptions);
+    return tx;
+  }
+
+  /**
    * Finalize voting period
    */
   async finalizeVoting(): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.finalizeVoting();
+    const gasEstimate = await contract.finalizeVoting.estimateGas();
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.finalizeVoting(txOptions);
     return tx;
   }
 
   /**
    * Record domain purchase (after acquiring NFT via orderbook)
-   * @param txHash Transaction hash of the purchase
    * @param nftAddress Address of the domain NFT contract
    * @param tokenId Token ID of the purchased domain
+   * @param txHash Transaction hash of the purchase
    */
-  async recordPurchase(
-    txHash: string,
+  async recordDomainPurchase(
     nftAddress: string,
-    tokenId: bigint
+    tokenId: string,
+    txHash: string
   ): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.recordPurchase(txHash, nftAddress, tokenId);
+
+    // Convert txHash to bytes32 format
+    const txHashBytes32 = txHash.startsWith("0x") ? txHash : `0x${txHash}`;
+
+    const gasEstimate = await contract.recordDomainPurchase.estimateGas(
+      nftAddress,
+      tokenId,
+      txHashBytes32
+    );
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+
+    const tx = await contract.recordDomainPurchase(
+      nftAddress,
+      tokenId,
+      txHashBytes32,
+      txOptions
+    );
     return tx;
   }
-
   /**
    * Record fractionalization (after fractionalizing via DOMA API)
    * @param fractionTokenAddress Address of the created fraction token
@@ -372,7 +419,17 @@ export class FractionPoolService {
     fractionTokenAddress: string
   ): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.recordFractionalization(fractionTokenAddress);
+    const gasEstimate = await contract.recordFractionalization.estimateGas(
+      fractionTokenAddress
+    );
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.recordFractionalization(
+      fractionTokenAddress,
+      txOptions
+    );
     return tx;
   }
 
@@ -381,7 +438,12 @@ export class FractionPoolService {
    */
   async claimShares(): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.claimShares();
+    const gasEstimate = await contract.claimShares.estimateGas();
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.claimShares(txOptions);
     return tx;
   }
 
@@ -406,7 +468,12 @@ export class FractionPoolService {
    */
   async refund(): Promise<TransactionResponse> {
     const contract = this.ensureInitialized();
-    const tx = await contract.refund();
+    const gasEstimate = await contract.refund.estimateGas();
+    const txOptions = await getDomaTransactionOptions(
+      this.provider!,
+      gasEstimate
+    );
+    const tx = await contract.refund(txOptions);
     return tx;
   }
 
@@ -511,12 +578,12 @@ export class FractionPoolService {
    */
   static getStateName(state: PoolState): string {
     const stateNames = {
-      [PoolState.Active]: "Active",
+      [PoolState.Fundraising]: "Fundraising",
       [PoolState.Voting]: "Voting",
-      [PoolState.Purchasing]: "Purchasing",
+      [PoolState.Purchased]: "Purchased",
       [PoolState.Fractionalized]: "Fractionalized",
-      [PoolState.Failed]: "Failed",
-      [PoolState.Cancelled]: "Cancelled",
+      [PoolState.Closed]: "Closed",
+      [PoolState.Disputed]: "Disputed",
     };
     return stateNames[state] || "Unknown";
   }

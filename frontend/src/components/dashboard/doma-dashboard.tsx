@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -14,6 +14,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,99 +29,10 @@ import { GovernancePage } from "@/components/governance/governance-page";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { RecentEventsWidget } from "@/components/events/recent-events-widget";
 import { EventsPage } from "@/components/events/events-page";
+import { useWallet } from "@/contexts/wallet-context";
+import { useUserPortfolio } from "@/hooks/use-api";
 
-const portfolioCards = [
-  {
-    title: "Total Investment Value",
-    value: "$12,450",
-    change: "+8.2%",
-    icon: DollarSign,
-    color: "text-green-600",
-  },
-  {
-    title: "Active Pools",
-    value: "7",
-    change: "+2",
-    icon: Users,
-    color: "text-blue-600",
-  },
-  {
-    title: "Total Revenue Earned",
-    value: "$1,234",
-    change: "+15.3%",
-    icon: TrendingUp,
-    color: "text-purple-600",
-  },
-];
-
-const activeInvestments = [
-  {
-    domain: "crypto.eth",
-    shares: "150",
-    value: "$2,340",
-    roi: "+12.5%",
-    status: "Active",
-  },
-  {
-    domain: "defi.domains",
-    shares: "89",
-    value: "$1,567",
-    roi: "+8.9%",
-    status: "Active",
-  },
-  {
-    domain: "web3.nft",
-    shares: "234",
-    value: "$3,421",
-    roi: "+22.1%",
-    status: "Voting",
-  },
-  {
-    domain: "blockchain.xyz",
-    shares: "67",
-    value: "$987",
-    roi: "+5.4%",
-    status: "Active",
-  },
-  {
-    domain: "dao.org",
-    shares: "123",
-    value: "$1,890",
-    roi: "+18.7%",
-    status: "Claim Available",
-  },
-];
-
-const recentActivities = [
-  {
-    type: "investment",
-    title: "Invested in crypto.eth pool",
-    amount: "$500",
-    time: "2 hours ago",
-    icon: DollarSign,
-  },
-  {
-    type: "vote",
-    title: "Voted on defi.domains proposal",
-    amount: "89 shares",
-    time: "5 hours ago",
-    icon: Vote,
-  },
-  {
-    type: "claim",
-    title: "Claimed revenue from web3.nft",
-    amount: "$45.67",
-    time: "1 day ago",
-    icon: CheckCircle,
-  },
-  {
-    type: "investment",
-    title: "Joined blockchain.xyz pool",
-    amount: "$200",
-    time: "2 days ago",
-    icon: DollarSign,
-  },
-];
+// Removed hardcoded mock data - portfolio cards now generated from real data
 
 const governanceAlerts = [
   {
@@ -140,7 +52,81 @@ const governanceAlerts = [
 export function DomaDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { account, isConnected } = useWallet();
   const [userName] = useState("dev.eth");
+
+  // Fetch real portfolio data
+  const {
+    data: portfolioData,
+    loading: portfolioLoading,
+    refetch: refetchPortfolio,
+  } = useUserPortfolio(account);
+
+  // Generate portfolio cards with real data
+  const portfolioCards = useMemo(() => {
+    if (!portfolioData) {
+      return [
+        {
+          title: "Total Investment Value",
+          value: isConnected ? "..." : "$0",
+          change: "+0%",
+          icon: DollarSign,
+          color: "text-green-600",
+        },
+        {
+          title: "Active Pools",
+          value: isConnected ? "..." : "0",
+          change: "+0",
+          icon: Users,
+          color: "text-blue-600",
+        },
+        {
+          title: "Total Revenue Earned",
+          value: isConnected ? "..." : "$0",
+          change: "+0%",
+          icon: TrendingUp,
+          color: "text-purple-600",
+        },
+      ];
+    }
+
+    return [
+      {
+        title: "Total Investment Value",
+        value: `$${portfolioData.totalInvestmentValue.toFixed(2)}`,
+        change: "+0%", // TODO: Calculate change from historical data
+        icon: DollarSign,
+        color: "text-green-600",
+      },
+      {
+        title: "Active Pools",
+        value: portfolioData.activePools.toString(),
+        change: "+0",
+        icon: Users,
+        color: "text-blue-600",
+      },
+      {
+        title: "Total Revenue Earned",
+        value: `$${portfolioData.totalRevenue.toFixed(2)}`,
+        change: "+0%",
+        icon: TrendingUp,
+        color: "text-purple-600",
+      },
+    ];
+  }, [portfolioData, isConnected]);
+
+  // Get active investments from portfolio data
+  const activeInvestments = useMemo(() => {
+    if (!portfolioData) return [];
+
+    return portfolioData.activeInvestments.map((inv) => ({
+      domain: inv.domain,
+      shares: inv.shares || "0",
+      value: `$${parseFloat(inv.value).toFixed(2)}`,
+      roi: "+0%", // TODO: Calculate ROI
+      status: inv.status,
+    }));
+  }, [portfolioData]);
 
   // Get current view from URL search params, default to "dashboard"
   const currentView = searchParams.get("view") || "dashboard";
@@ -285,51 +271,85 @@ export function DomaDashboard() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Active Investments</CardTitle>
-                    <Button variant="ghost" size="sm">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("portfolio")}
+                    >
                       View All
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {activeInvestments.map((investment, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-3 border rounded-lg"
+                    {portfolioLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          Loading investments...
+                        </span>
+                      </div>
+                    ) : !isConnected ? (
+                      <div className="text-center py-8">
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Connect your wallet to view your investments
+                        </p>
+                        <WalletConnect />
+                      </div>
+                    ) : activeInvestments.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-sm text-muted-foreground mb-4">
+                          No active investments yet
+                        </p>
+                        <Button
+                          size="sm"
+                          onClick={() => setCurrentView("pools")}
+                          className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600"
                         >
-                          <div className="flex-1">
-                            <div className="font-medium">
-                              {investment.domain}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {investment.shares} shares • {investment.value}
-                            </div>
-                          </div>
-                          <div className="text-right">
+                          Browse Pools
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {activeInvestments
+                          .slice(0, 5)
+                          .map((investment, index) => (
                             <div
-                              className={`text-sm font-medium ${
-                                investment.roi.startsWith("+")
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {investment.roi}
-                            </div>
-                            <Badge
-                              variant={
-                                investment.status === "Active"
-                                  ? "default"
-                                  : investment.status === "Voting"
-                                  ? "secondary"
-                                  : "outline"
+                              key={index}
+                              className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              onClick={() =>
+                                router.push(
+                                  `/pools/${
+                                    portfolioData?.activeInvestments[index]
+                                      ?.poolAddress || ""
+                                  }`
+                                )
                               }
                             >
-                              {investment.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                              <div className="flex-1">
+                                <div className="font-medium">
+                                  {investment.domain}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Contributed: {investment.value}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <Badge
+                                  variant={
+                                    investment.status === "ACTIVE"
+                                      ? "default"
+                                      : investment.status === "Voting"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                >
+                                  {investment.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
