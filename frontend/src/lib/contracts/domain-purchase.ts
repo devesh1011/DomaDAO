@@ -112,6 +112,10 @@ export class DomainPurchaseService {
 
       const orderbookService = getDomaOrderbookService();
 
+      // Get the offerer address (the connected wallet)
+      const offererAddress = await this.signer.getAddress();
+      console.log("Offerer (connected wallet):", offererAddress);
+
       // 1. Get marketplace fees
       console.log("Fetching marketplace fees...");
       const fees = await orderbookService.getOrderbookFees(
@@ -120,22 +124,37 @@ export class DomainPurchaseService {
         DOMA_CHAIN_ID
       );
 
-      // 2. Build order parameters
+      // 2. Get current counter from Seaport contract (if available)
+      console.log("Fetching counter from Seaport...");
+      let counter = "0";
+      try {
+        counter = await this.getCounter(offererAddress);
+      } catch (error) {
+        console.warn(
+          "Could not fetch counter from Seaport, using default value 0:",
+          error
+        );
+        counter = "0";
+      }
+
+      // 3. Build order parameters
       console.log("Building offer parameters...");
       const orderParams = buildBuyOfferParams(
-        params.poolAddress,
+        offererAddress, // Connected wallet as offerer (buyer)
         params.domainNftAddress,
         params.tokenId,
         params.paymentTokenAddress,
         params.offerAmount,
-        fees.marketplaceFees
+        fees.marketplaceFees,
+        counter,
+        params.poolAddress // NFT should be sent to pool after purchase
       );
 
-      // 3. Sign the order using EIP-712
+      // 4. Sign the order using EIP-712
       console.log("Signing order...");
       const signature = await this.signOrder(orderParams);
 
-      // 4. Submit offer to Doma Orderbook API
+      // 5. Submit offer to Doma Orderbook API
       console.log("Submitting offer to orderbook...");
       const request: CreateOfferRequest = {
         orderbook: "doma",
@@ -204,6 +223,17 @@ export class DomainPurchaseService {
       throw new Error("Signer not initialized");
     }
 
+    // Debug: Verify signer address
+    const signerAddress = await this.signer.getAddress();
+    console.log("About to sign with address:", signerAddress);
+    console.log("Order params offerer:", orderParams.offerer);
+
+    if (signerAddress.toLowerCase() !== orderParams.offerer.toLowerCase()) {
+      throw new Error(
+        `Signer address mismatch! Signer: ${signerAddress}, Offerer: ${orderParams.offerer}`
+      );
+    }
+
     // EIP-712 domain for Seaport on Doma Testnet
     const domain = {
       name: "Seaport",
@@ -244,6 +274,12 @@ export class DomainPurchaseService {
       ],
     };
 
+    console.log("Signing with domain:", domain);
+    console.log(
+      "Full order params being signed:",
+      JSON.stringify(orderParams, null, 2)
+    );
+
     // Sign the typed data
     const signature = await this.signer.signTypedData(
       domain,
@@ -251,7 +287,40 @@ export class DomainPurchaseService {
       orderParams
     );
 
+    console.log("Signature created:", signature);
+
     return signature;
+  }
+
+  /**
+   * Get the current counter for an offerer from Seaport contract
+   */
+  private async getCounter(offerer: string): Promise<string> {
+    if (!this.provider) {
+      throw new Error("Provider not initialized");
+    }
+
+    const seaportAbi = [
+      "function getCounter(address offerer) external view returns (uint256 counter)",
+    ];
+
+    try {
+      const seaportContract = new Contract(
+        SEAPORT_ADDRESS,
+        seaportAbi,
+        this.provider
+      );
+
+      const counter = await seaportContract.getCounter(offerer);
+      return counter.toString();
+    } catch (error: any) {
+      console.error("Error fetching counter from Seaport:", {
+        seaportAddress: SEAPORT_ADDRESS,
+        offerer,
+        error: error.message,
+      });
+      throw error;
+    }
   }
 
   /**
