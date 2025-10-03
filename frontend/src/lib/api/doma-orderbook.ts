@@ -127,7 +127,20 @@ export class DomaOrderbookService {
       throw new Error(`Failed to get orderbook fees: ${error}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log("Orderbook fees response:", data);
+    console.log("Marketplace fees details:", {
+      fees: data.marketplaceFees,
+      count: data.marketplaceFees?.length,
+    });
+
+    // Ensure marketplaceFees is an array, default to empty if null/undefined
+    if (!data.marketplaceFees || !Array.isArray(data.marketplaceFees)) {
+      console.warn("No marketplace fees returned, using empty array");
+      return { marketplaceFees: [] };
+    }
+
+    return data;
   }
 
   /**
@@ -170,6 +183,14 @@ export class DomaOrderbookService {
       orderbook: request.orderbook.toUpperCase(),
     };
 
+    console.log("Sending create offer request:", {
+      url,
+      orderbook: normalizedRequest.orderbook,
+      chainId: normalizedRequest.chainId,
+      offerer: normalizedRequest.parameters.offerer,
+      hasSignature: !!normalizedRequest.signature,
+    });
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -180,8 +201,22 @@ export class DomaOrderbookService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to create offer: ${error}`);
+      const errorText = await response.text();
+      console.error("Create offer failed:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      });
+
+      let errorMessage = `Failed to create offer (${response.status})`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || errorJson.error || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -280,15 +315,36 @@ export function getDomaOrderbookService(): DomaOrderbookService {
  * Helper to build offer parameters for buying a domain
  */
 export function buildBuyOfferParams(
-  poolAddress: string,
+  offererAddress: string, // The connected wallet address (buyer)
   domainNftAddress: string,
   tokenId: string,
   paymentTokenAddress: string,
   offerAmount: string,
-  fees: MarketplaceFee[]
+  fees: MarketplaceFee[],
+  counter: string = "0",
+  recipientAddress?: string // Optional: where NFT should go (defaults to offerer)
 ): OrderComponents {
   const now = Math.floor(Date.now() / 1000);
   const oneWeekLater = now + 7 * 24 * 60 * 60;
+
+  // NFT recipient defaults to the offerer if not specified
+  const nftRecipient = recipientAddress || offererAddress;
+
+  // Validate and filter fees to remove any null/undefined values
+  const validFees = (fees || []).filter(
+    (fee) =>
+      fee &&
+      fee.recipient &&
+      fee.amount !== null &&
+      fee.amount !== undefined &&
+      fee.amount !== ""
+  );
+
+  console.log("Building offer with validated fees:", {
+    originalFeesCount: fees?.length || 0,
+    validFeesCount: validFees.length,
+    validFees,
+  });
 
   // Offer: USDC from buyer
   const offer: OfferItem[] = [
@@ -303,17 +359,17 @@ export function buildBuyOfferParams(
 
   // Consideration: NFT to buyer + fees
   const consideration: ConsiderationItem[] = [
-    // NFT to buyer (pool)
+    // NFT to buyer (or specified recipient)
     {
       itemType: 2, // ERC721
       token: domainNftAddress,
       identifierOrCriteria: tokenId,
       startAmount: "1",
       endAmount: "1",
-      recipient: poolAddress,
+      recipient: nftRecipient,
     },
-    // Add marketplace fees
-    ...fees.map((fee) => ({
+    // Add marketplace fees (only valid ones)
+    ...validFees.map((fee) => ({
       itemType: 1, // ERC20
       token: paymentTokenAddress,
       identifierOrCriteria: "0",
@@ -324,9 +380,9 @@ export function buildBuyOfferParams(
   ];
 
   return {
-    offerer: poolAddress,
+    offerer: offererAddress, // THIS IS THE KEY FIX - use offererAddress not poolAddress
     zone: "0x0000000000000000000000000000000000000000",
-    orderType: 0, // Full Open
+    orderType: 2, // FULL_RESTRICTED (required by Doma Orderbook API)
     startTime: now.toString(),
     endTime: oneWeekLater.toString(),
     zoneHash:
@@ -337,6 +393,6 @@ export function buildBuyOfferParams(
     totalOriginalConsiderationItems: consideration.length,
     conduitKey:
       "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
-    counter: "0",
+    counter,
   };
 }
