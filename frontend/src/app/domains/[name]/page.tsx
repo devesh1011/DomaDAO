@@ -31,12 +31,19 @@ import {
   useDomainOffers,
   useDomainListings,
 } from "@/hooks/use-api";
+import { getExplorerLink, getTransactionLink } from "@/lib/contracts/addresses";
 import type { DomainToken } from "@/lib/api-types";
 
 export default function DomainDetailPage() {
   const params = useParams();
   const router = useRouter();
   const domainName = params.name as string;
+
+  // Helper function to extract address from CAIP-10 format
+  const extractAddress = (caip10Address: string) => {
+    const parts = caip10Address.split(":");
+    return parts.length > 2 ? parts[parts.length - 1] : caip10Address;
+  };
 
   // Fetch domain details
   const {
@@ -182,7 +189,7 @@ export default function DomainDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-pink-900/20">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -199,7 +206,7 @@ export default function DomainDetailPage() {
 
         {/* Domain Header Card */}
         <Card className="border-2 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
+          <CardHeader>
             <div className="flex items-start justify-between">
               <div className="space-y-3 flex-1">
                 <div className="flex items-center gap-3">
@@ -313,7 +320,17 @@ export default function DomainDetailPage() {
                 <p className="font-mono text-sm">
                   {domain.owner.slice(0, 6)}...{domain.owner.slice(-4)}
                 </p>
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() =>
+                    window.open(
+                      getExplorerLink(extractAddress(domain.owner)),
+                      "_blank"
+                    )
+                  }
+                >
                   <ExternalLink className="h-3 w-3 mr-1" />
                   View on Explorer
                 </Button>
@@ -563,7 +580,18 @@ export default function DomainDetailPage() {
                             </div>
                           </div>
 
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              window.open(
+                                getExplorerLink(
+                                  extractAddress(token.contractAddress)
+                                ),
+                                "_blank"
+                              )
+                            }
+                          >
                             <ExternalLink className="h-4 w-4 mr-1" />
                             View
                           </Button>
@@ -762,6 +790,14 @@ export default function DomainDetailPage() {
                               variant="link"
                               size="sm"
                               className="h-auto p-0 text-xs"
+                              onClick={() =>
+                                window.open(
+                                  getTransactionLink(
+                                    extractAddress(activity.transactionHash)
+                                  ),
+                                  "_blank"
+                                )
+                              }
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
                               View Transaction
