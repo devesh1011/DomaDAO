@@ -11,7 +11,11 @@
     "test:unit": "hardhat test test/FractionPool.test.ts test/RevenueDistributor.test.ts test/BuyoutHandler.test.ts",
     "test:integration": "hardhat test test/Integration.test.ts",
     "test:coverage": "hardhat coverage",
-    "test:gas": "REPORT_GAS=true hardhat test"
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "mint-nft": "node scripts/mint-nft-to-pool.js",
+    "check-nft": "node scripts/check-nft-balance.js",
+    "find-nfts": "node scripts/find-nft-tokens.js",
+    "find-nft-events": "node scripts/find-nft-by-events.js"
   },
   "keywords": [],
   "author": "",
