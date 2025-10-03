@@ -10,15 +10,15 @@ export const DOMA_TESTNET_CHAIN_ID = 97476;
 
 export const CONTRACT_ADDRESSES = {
   // Core Contracts
-  PoolFactory: "0x0a9d46B83bEd07a60e26376Eb69Db3Db4C0021e2",
+  PoolFactory: "0xEa814c2f9a320C304Fa3fdaE49F20f8bCc14cec4",
 
   // Supporting Contracts
-  RevenueDistributor: "0x8E167dca9B9268Ba65967b26CdB8b14Edf6a26D7",
-  BuyoutHandler: "0x2D1d867593BF0e6c33f9C9D9bc8a66DEF9e3769C",
+  RevenueDistributor: "0xcD92BD175e6006F41c64751A9Ba8d2dF911b33ED",
+  BuyoutHandler: "0x7EE964243D29a90b2D45500298566d1197b84112",
 
   // Mock Tokens (Testnet Only)
-  MockUSDC: "0xC86eb05835Cbfb4604dF162761180Acd0A0049DA",
-  MockDomainNFT: "0xfe5fce5B82aBbfc59CE57779aC61b2d5bE974226",
+  MockUSDC: "0x0aE56Fa4528aA92A58103de714F3D122f0bac669",
+  MockDomainNFT: "0x387196B48B566e84772f34382D4f10B0460867B5",
 
   // DOMA Protocol Contracts
   DomaRecord: "0xF6A92E0f8bEa4174297B0219d9d47fEe335f84f8",

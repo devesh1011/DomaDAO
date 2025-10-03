@@ -335,7 +335,7 @@ export function getEventTypeIcon(eventType: string): string {
  */
 export function getExplorerLink(txHash: string, chainId: string): string {
   const explorers: Record<string, string> = {
-    "97476": "https://testnet-doma.avascan.com", // Doma testnet
+    "97476": "https://explorer-testnet.doma.xyz", // Doma testnet
     "1": "https://etherscan.io",
     "137": "https://polygonscan.com",
   };

@@ -263,14 +263,31 @@ export class PoolFactoryService {
    * Get all created pools
    */
   async getAllPools(): Promise<string[]> {
-    const provider = await this.getReadOnlyProvider();
-    const contract = new Contract(
-      CONTRACT_ADDRESSES.PoolFactory,
-      PoolFactoryArtifact.abi,
-      provider
-    );
-    const pools = await contract.getAllPools();
-    return pools;
+    try {
+      const provider = await this.getReadOnlyProvider();
+      const contract = new Contract(
+        CONTRACT_ADDRESSES.PoolFactory,
+        PoolFactoryArtifact.abi,
+        provider
+      );
+
+      // Check if contract exists at the address
+      const code = await provider.getCode(CONTRACT_ADDRESSES.PoolFactory);
+      if (code === "0x") {
+        console.warn(
+          "PoolFactory contract not found at address:",
+          CONTRACT_ADDRESSES.PoolFactory
+        );
+        return [];
+      }
+
+      const pools = await contract.getAllPools();
+      return pools || [];
+    } catch (error) {
+      console.error("Error fetching pools from PoolFactory:", error);
+      // Return empty array instead of throwing to prevent dashboard from breaking
+      return [];
+    }
   }
 
   /**
