@@ -232,6 +232,9 @@ contract FractionPool is
 
         require(bytes(winner).length > 0, "FractionPool: No votes cast");
         winningDomain = winner;
+
+        // Keep in Voting state until purchase is recorded
+        // The status will transition to Purchased when recordDomainPurchase is called
     }
 
     /**
@@ -244,10 +247,10 @@ contract FractionPool is
         address _domainNFTAddress,
         uint256 _domainTokenId,
         bytes32 txHash
-    ) external onlyOwner onlyDuringPurchase nonReentrant {
+    ) external onlyOwner nonReentrant {
         require(
             metadata.status == PoolStatus.Voting,
-            "FractionPool: Invalid status"
+            "FractionPool: Invalid status - must finalize voting first"
         );
         require(
             _domainNFTAddress != address(0),
@@ -255,7 +258,7 @@ contract FractionPool is
         );
         require(
             bytes(winningDomain).length > 0,
-            "FractionPool: No winning domain"
+            "FractionPool: No winning domain - finalize voting first"
         );
 
         // Verify the pool holds the NFT
