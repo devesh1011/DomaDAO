@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Home,
   Search,
@@ -9,9 +9,10 @@ import {
   PieChart,
   Vote,
   Settings,
-  Wallet
-} from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+  Wallet,
+  Activity,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 const data = {
   user: {
@@ -56,23 +57,28 @@ const data = {
       icon: Vote,
     },
     {
+      title: "Network Events",
+      key: "events",
+      icon: Activity,
+    },
+    {
       title: "Settings",
       key: "settings",
       icon: Settings,
     },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const currentView = searchParams.get("view") || "dashboard"
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view") || "dashboard";
 
   const handleNavigate = (view: string) => {
-    const newSearchParams = new URLSearchParams(searchParams.toString())
-    newSearchParams.set("view", view)
-    router.push(`/dashboard?${newSearchParams.toString()}`, { scroll: false })
-  }
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.set("view", view);
+    router.push(`/dashboard?${newSearchParams.toString()}`, { scroll: false });
+  };
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -130,5 +136,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
