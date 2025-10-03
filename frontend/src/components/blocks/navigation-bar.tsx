@@ -10,18 +10,18 @@ const navItems = [
     icon: Home,
   },
   {
-    name: "Dashboard",
-    url: "/dashboard",
+    name: "Features",
+    url: "#features",
     icon: TrendingUp,
   },
   {
-    name: "Pools",
-    url: "/pools",
+    name: "How It Works",
+    url: "#how-it-works",
     icon: Users,
   },
   {
-    name: "Governance",
-    url: "/governance",
+    name: "Get Started",
+    url: "#get-started",
     icon: Vote,
   },
 ];

@@ -1,27 +1,28 @@
-import * as React from "react"
-import { cn } from "@/lib/utils"
-import { ChevronRight } from "lucide-react"
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 
 interface HeroSectionProps extends React.HTMLAttributes<HTMLDivElement> {
-  title?: string
+  title?: string;
   subtitle?: {
-    regular: string
-    gradient: string
-  }
-  description?: string
-  ctaText?: string
-  ctaHref?: string
+    regular: string;
+    gradient: string;
+  };
+  description?: string;
+  ctaText?: string;
+  ctaHref?: string;
   bottomImage?: {
-    light: string
-    dark: string
-  }
+    light: string;
+    dark: string;
+  };
   gridOptions?: {
-    angle?: number
-    cellSize?: number
-    opacity?: number
-    lightLineColor?: string
-    darkLineColor?: string
-  }
+    angle?: number;
+    cellSize?: number;
+    opacity?: number;
+    lightLineColor?: string;
+    darkLineColor?: string;
+  };
 }
 
 const RetroGrid = ({
@@ -37,13 +38,13 @@ const RetroGrid = ({
     "--opacity": opacity,
     "--light-line": lightLineColor,
     "--dark-line": darkLineColor,
-  } as React.CSSProperties
+  } as React.CSSProperties;
 
   return (
     <div
       className={cn(
         "pointer-events-none absolute size-full overflow-hidden [perspective:200px]",
-        `opacity-[var(--opacity)]`,
+        `opacity-[var(--opacity)]`
       )}
       style={gridStyles}
     >
@@ -52,8 +53,8 @@ const RetroGrid = ({
       </div>
       <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent to-90% dark:from-black" />
     </div>
-  )
-}
+  );
+};
 
 const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
   (
@@ -74,7 +75,7 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
       gridOptions,
       ...props
     },
-    ref,
+    ref
   ) => {
     return (
       <div className={cn("relative", className)} ref={ref} {...props}>
@@ -97,17 +98,17 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
                 {description}
               </p>
               <div className="items-center justify-center gap-x-3 space-y-3 sm:flex sm:space-y-0">
-                <span className="relative inline-block overflow-hidden rounded-full p-[1.5px]">
-                  <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
-                    <a
-                      href={ctaHref}
-                      className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all sm:w-auto py-4 px-10"
-                    >
+                <Link
+                  href="/dashboard"
+                  className="relative inline-block overflow-hidden rounded-full p-[1.5px]"
+                >
+                  <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)] pointer-events-none" />
+                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl relative z-10">
+                    <span className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all sm:w-auto py-4 px-10">
                       {ctaText}
-                    </a>
+                    </span>
                   </div>
-                </span>
+                </Link>
               </div>
             </div>
             {bottomImage && (
@@ -127,9 +128,9 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
           </div>
         </section>
       </div>
-    )
-  },
-)
-HeroSection.displayName = "HeroSection"
+    );
+  }
+);
+HeroSection.displayName = "HeroSection";
 
-export { HeroSection }
+export { HeroSection };
