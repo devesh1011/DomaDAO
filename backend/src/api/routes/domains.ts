@@ -5,43 +5,41 @@ import { NotFoundError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-// Debug middleware for all domains routes
-router.use((req, res, next) => {
-  console.log('Domains router hit:', req.method, req.path, req.params, req.query);
-  next();
-});
-
 /**
  * GET /domains/search - Search domains
  * NOTE: This must be defined BEFORE /:name to avoid route conflicts
  */
 router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { query, first = 20, skip = 0 } = req.query;
+    const { query, take = 20, skip = 0, tlds } = req.query;
 
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'Query parameter required',
-      });
+    // Allow empty query to browse all domains
+    const searchQuery = query && typeof query === 'string' ? query.toLowerCase() : '';
+
+    // Parse TLDs filter
+    let tldsArray: string[] | undefined;
+    if (tlds && typeof tlds === 'string') {
+      tldsArray = tlds.split(',').map(tld => tld.trim()).filter(Boolean);
     }
 
-    // Search using subgraph (basic prefix search)
+    // If no query and no TLDs filter, provide a default search to get some results
+    const effectiveSearchQuery = searchQuery || (tldsArray ? undefined : 'a');
+    const effectiveTlds = tldsArray;
+
+    // Search using subgraph (basic prefix search or all domains)
     const domains = await subgraphClient.getNames({
-      first: Number(first),
+      take: Number(take),
       skip: Number(skip),
-      orderBy: 'name',
-      orderDirection: 'asc',
-      where: {
-        name_starts_with: query.toLowerCase(),
-      },
+      name: effectiveSearchQuery,
+      tlds: effectiveTlds,
+      sortOrder: 'ASC',
     });
 
     res.json({
       success: true,
       data: domains,
       pagination: {
-        first: Number(first),
+        take: Number(take),
         skip: Number(skip),
       },
     });
@@ -57,17 +55,24 @@ router.get('/:name', async (req: Request, res: Response, next: NextFunction) => 
   try {
     const { name } = req.params;
 
+    console.log('Fetching domain details for:', name);
+
     // Try cache
     const cacheKey = CacheKeys.domain(name);
     const cached = await cacheManager.get(cacheKey);
     if (cached) {
+      console.log('Returning cached domain:', name);
       return res.json({ success: true, data: cached, cached: true });
     }
 
     // Fetch from subgraph
+    console.log('Fetching from DOMA subgraph:', name);
     const domain = await subgraphClient.getName(name);
 
+    console.log('Domain fetched:', domain ? 'Found' : 'Not found');
+
     if (!domain) {
+      console.log('Domain not found in subgraph:', name);
       throw new NotFoundError('Domain not found');
     }
 
@@ -78,7 +83,8 @@ router.get('/:name', async (req: Request, res: Response, next: NextFunction) => 
       success: true,
       data: domain,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error fetching domain:', name, error.message || error);
     next(error);
   }
 });
@@ -87,7 +93,6 @@ router.get('/:name', async (req: Request, res: Response, next: NextFunction) => 
  * GET /domains/:name/activities - Get domain activities
  */
 router.get('/:name/activities', async (req: Request, res: Response, next: NextFunction) => {
-  console.log('Activities route called with params:', req.params, 'query:', req.query);
   try {
     const { name } = req.params;
     const { take = 50, skip = 0 } = req.query;
@@ -106,7 +111,6 @@ router.get('/:name/activities', async (req: Request, res: Response, next: NextFu
       },
     });
   } catch (error) {
-    console.log('Activities route error:', error);
     next(error);
   }
 });
