@@ -1,27 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BrowserProvider, Contract, TransactionResponse } from 'ethers'
-import RevenueDistributorABI from '@/contracts/RevenueDistributor.json'
-import { getContractAddress } from './addresses'
+import { BrowserProvider, Contract, TransactionResponse } from "ethers";
+import RevenueDistributorABI from "@/contracts/RevenueDistributor.json";
+import { getContractAddress } from "./addresses";
 
 /**
  * Distribution information
  */
 export interface DistributionInfo {
-  id: bigint
-  totalAmount: bigint
-  timestamp: bigint
-  claimedAmount: bigint
-  totalSupplyAtSnapshot: bigint
+  id: bigint;
+  totalAmount: bigint;
+  timestamp: bigint;
+  claimedAmount: bigint;
+  totalSupplyAtSnapshot: bigint;
 }
 
 /**
  * User claim status for a distribution
  */
 export interface ClaimStatus {
-  distributionId: bigint
-  hasClaimed: boolean
-  claimableAmount: bigint
-  userBalanceAtSnapshot: bigint
+  distributionId: bigint;
+  hasClaimed: boolean;
+  claimableAmount: bigint;
+  userBalanceAtSnapshot: bigint;
 }
 
 /**
@@ -29,10 +29,10 @@ export interface ClaimStatus {
  * Handles revenue distribution and claiming
  */
 export class RevenueDistributorService {
-  private static instance: RevenueDistributorService | null = null
-  private contract: Contract | null = null
-  private provider: BrowserProvider | null = null
-  private signer: any = null
+  private static instance: RevenueDistributorService | null = null;
+  private contract: Contract | null = null;
+  private provider: BrowserProvider | null = null;
+  private signer: any = null;
 
   private constructor() {}
 
@@ -41,26 +41,30 @@ export class RevenueDistributorService {
    */
   static getInstance(): RevenueDistributorService {
     if (!RevenueDistributorService.instance) {
-      RevenueDistributorService.instance = new RevenueDistributorService()
+      RevenueDistributorService.instance = new RevenueDistributorService();
     }
-    return RevenueDistributorService.instance
+    return RevenueDistributorService.instance;
   }
 
   /**
    * Initialize the service with MetaMask provider
    */
   async initialize(): Promise<void> {
-    if (this.contract) return // Already initialized
+    if (this.contract) return; // Already initialized
 
-    if (typeof window.ethereum === 'undefined') {
-      throw new Error('MetaMask is not installed')
+    if (typeof window.ethereum === "undefined") {
+      throw new Error("MetaMask is not installed");
     }
 
-    this.provider = new BrowserProvider(window.ethereum)
-    this.signer = await this.provider.getSigner()
-    
-    const contractAddress = getContractAddress('RevenueDistributor')
-    this.contract = new Contract(contractAddress, RevenueDistributorABI.abi, this.signer)
+    this.provider = new BrowserProvider(window.ethereum);
+    this.signer = await this.provider.getSigner();
+
+    const contractAddress = getContractAddress("RevenueDistributor");
+    this.contract = new Contract(
+      contractAddress,
+      RevenueDistributorABI.abi,
+      this.signer
+    );
   }
 
   /**
@@ -68,56 +72,61 @@ export class RevenueDistributorService {
    */
   private ensureInitialized(): Contract {
     if (!this.contract) {
-      throw new Error('RevenueDistributorService not initialized. Call initialize() first.')
+      throw new Error(
+        "RevenueDistributorService not initialized. Call initialize() first."
+      );
     }
-    return this.contract
+    return this.contract;
   }
 
   /**
    * Get total number of distributions
    */
   async getDistributionCount(): Promise<bigint> {
-    const contract = this.ensureInitialized()
-    return await contract.distributionCount()
+    const contract = this.ensureInitialized();
+    return await contract.distributionCount();
   }
 
   /**
    * Get distribution information by ID
    */
   async getDistribution(distributionId: bigint): Promise<DistributionInfo> {
-    const contract = this.ensureInitialized()
-    const dist = await contract.distributions(distributionId)
-    
+    const contract = this.ensureInitialized();
+    const dist = await contract.distributions(distributionId);
+
     return {
       id: dist.id,
       totalAmount: dist.totalAmount,
       timestamp: dist.timestamp,
       claimedAmount: dist.claimedAmount,
       totalSupplyAtSnapshot: dist.totalSupplyAtSnapshot,
-    }
+    };
   }
 
   /**
    * Get all distributions
    */
   async getAllDistributions(): Promise<DistributionInfo[]> {
-    const count = await this.getDistributionCount()
-    const distributions: DistributionInfo[] = []
-    
+    const count = await this.getDistributionCount();
+    const distributions: DistributionInfo[] = [];
+
     for (let i = 0; i < Number(count); i++) {
-      const dist = await this.getDistribution(BigInt(i))
-      distributions.push(dist)
+      const dist = await this.getDistribution(BigInt(i));
+      distributions.push(dist);
     }
-    
-    return distributions
+
+    return distributions;
   }
 
   /**
    * Check if user has claimed a distribution
    */
-  async hasClaimed(distributionId: bigint, userAddress: string): Promise<boolean> {
-    const contract = this.ensureInitialized()
-    return await contract.hasClaimed(distributionId, userAddress)
+  async hasClaimed(
+    distributionId: bigint,
+    userAddress: string
+  ): Promise<boolean> {
+    const contract = this.ensureInitialized();
+    return await contract.hasClaimed(distributionId, userAddress);
   }
 
   /**
@@ -127,9 +136,9 @@ export class RevenueDistributorService {
     distributionId: bigint,
     userAddress: string
   ): Promise<bigint> {
-    const contract = this.ensureInitialized()
-    const dist = await contract.distributions(distributionId)
-    return await dist.balanceSnapshot(userAddress)
+    const contract = this.ensureInitialized();
+    const dist = await contract.distributions(distributionId);
+    return await dist.balanceSnapshot(userAddress);
   }
 
   /**
@@ -139,58 +148,74 @@ export class RevenueDistributorService {
     distributionId: bigint,
     userAddress: string
   ): Promise<bigint> {
-    const contract = this.ensureInitialized()
-    
-    // Check if already claimed
-    const claimed = await this.hasClaimed(distributionId, userAddress)
-    if (claimed) return BigInt(0)
-    
-    // Get distribution info
-    const dist = await this.getDistribution(distributionId)
-    
-    // Get user balance at snapshot (this requires accessing the mapping)
-    // Since mappings are not directly readable, we'll need to calculate it
-    // For now, return 0 and handle this in the contract view function
-    return BigInt(0)
+    const contract = this.ensureInitialized();
+    return await contract.getClaimableAmount(distributionId, userAddress);
+  }
+
+  /**
+   * Get total claimable amount across all distributions
+   */
+  async getTotalClaimableAmount(userAddress: string): Promise<bigint> {
+    const contract = this.ensureInitialized();
+    return await contract.getTotalClaimableAmount(userAddress);
+  }
+
+  /**
+   * Get user's balance at snapshot for a distribution
+   */
+  async getSnapshotBalance(
+    distributionId: bigint,
+    userAddress: string
+  ): Promise<bigint> {
+    const contract = this.ensureInitialized();
+    return await contract.getSnapshotBalance(distributionId, userAddress);
   }
 
   /**
    * Get all claim statuses for a user
    */
   async getUserClaimStatuses(userAddress: string): Promise<ClaimStatus[]> {
-    const distributions = await this.getAllDistributions()
-    const statuses: ClaimStatus[] = []
-    
+    const distributions = await this.getAllDistributions();
+    const statuses: ClaimStatus[] = [];
+
     for (const dist of distributions) {
-      const hasClaimed = await this.hasClaimed(dist.id, userAddress)
-      
+      const hasClaimed = await this.hasClaimed(dist.id, userAddress);
+      const claimableAmount = await this.getClaimableAmount(
+        dist.id,
+        userAddress
+      );
+      const userBalanceAtSnapshot = await this.getSnapshotBalance(
+        dist.id,
+        userAddress
+      );
+
       statuses.push({
         distributionId: dist.id,
         hasClaimed,
-        claimableAmount: BigInt(0), // Would need contract view function
-        userBalanceAtSnapshot: BigInt(0), // Would need contract view function
-      })
+        claimableAmount,
+        userBalanceAtSnapshot,
+      });
     }
-    
-    return statuses
+
+    return statuses;
   }
 
   /**
    * Claim revenue from a distribution
    */
   async claim(distributionId: bigint): Promise<TransactionResponse> {
-    const contract = this.ensureInitialized()
-    const tx = await contract.claim(distributionId)
-    return tx
+    const contract = this.ensureInitialized();
+    const tx = await contract.claim(distributionId);
+    return tx;
   }
 
   /**
    * Claim from multiple distributions at once
    */
   async claimMultiple(distributionIds: bigint[]): Promise<TransactionResponse> {
-    const contract = this.ensureInitialized()
-    const tx = await contract.claimMultiple(distributionIds)
-    return tx
+    const contract = this.ensureInitialized();
+    const tx = await contract.claimMultiple(distributionIds);
+    return tx;
   }
 
   /**
@@ -201,9 +226,9 @@ export class RevenueDistributorService {
     holders: string[],
     balances: bigint[]
   ): Promise<TransactionResponse> {
-    const contract = this.ensureInitialized()
-    const tx = await contract.createDistribution(amount, holders, balances)
-    return tx
+    const contract = this.ensureInitialized();
+    const tx = await contract.createDistribution(amount, holders, balances);
+    return tx;
   }
 
   /**
@@ -212,18 +237,23 @@ export class RevenueDistributorService {
   onDistributionCreated(
     callback: (id: bigint, amount: bigint, timestamp: bigint) => void
   ): () => void {
-    const contract = this.ensureInitialized()
-    
-    const filter = contract.filters.DistributionCreated()
-    const listener = (id: bigint, amount: bigint, distId: bigint, timestamp: bigint) => {
-      callback(id, amount, timestamp)
-    }
+    const contract = this.ensureInitialized();
 
-    contract.on(filter, listener)
+    const filter = contract.filters.DistributionCreated();
+    const listener = (
+      id: bigint,
+      amount: bigint,
+      distId: bigint,
+      timestamp: bigint
+    ) => {
+      callback(id, amount, timestamp);
+    };
+
+    contract.on(filter, listener);
 
     return () => {
-      contract.off(filter, listener)
-    }
+      contract.off(filter, listener);
+    };
   }
 
   /**
@@ -232,32 +262,32 @@ export class RevenueDistributorService {
   onClaimed(
     callback: (user: string, distributionId: bigint, amount: bigint) => void
   ): () => void {
-    const contract = this.ensureInitialized()
-    
-    const filter = contract.filters.Claimed()
-    const listener = (user: string, distributionId: bigint, amount: bigint) => {
-      callback(user, distributionId, amount)
-    }
+    const contract = this.ensureInitialized();
 
-    contract.on(filter, listener)
+    const filter = contract.filters.Claimed();
+    const listener = (user: string, distributionId: bigint, amount: bigint) => {
+      callback(user, distributionId, amount);
+    };
+
+    contract.on(filter, listener);
 
     return () => {
-      contract.off(filter, listener)
-    }
+      contract.off(filter, listener);
+    };
   }
 
   /**
    * Format USDC amount for display
    */
   static formatAmount(amountRaw: bigint): string {
-    return (Number(amountRaw) / 1e6).toFixed(2) + ' USDC'
+    return (Number(amountRaw) / 1e6).toFixed(2) + " USDC";
   }
 
   /**
    * Parse USDC amount from string
    */
   static parseAmount(amount: string): bigint {
-    return BigInt(Math.floor(parseFloat(amount) * 1e6))
+    return BigInt(Math.floor(parseFloat(amount) * 1e6));
   }
 }
 
@@ -265,7 +295,7 @@ export class RevenueDistributorService {
  * Helper function to get a RevenueDistributorService instance
  */
 export async function getRevenueDistributorService(): Promise<RevenueDistributorService> {
-  const service = RevenueDistributorService.getInstance()
-  await service.initialize()
-  return service
+  const service = RevenueDistributorService.getInstance();
+  await service.initialize();
+  return service;
 }
